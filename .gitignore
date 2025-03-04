@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+*.db
+*.sqlite3
+*.log
+
+# Virtualenv
+venv/
+env/
+ENV/
+.venv/
+
+# Docker
+*.log
+*.pid
+*.sock
+docker-compose.override.yml
+
+# Kubernetes
+.kube/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.out
+
+# .env
+.env
+.env.*.local
+
+# Coverage
+.coverage
+*.cover
+coverage.xml
+*.hypothesis/
+.pytest_cache/
+
+# Test / build / distribution directories
+dist/
+build/
+*.egg-info/
+
+# Additional
+*.tar.gz
+*.zip
