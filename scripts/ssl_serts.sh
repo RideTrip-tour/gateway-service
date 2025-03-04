@@ -12,11 +12,11 @@ fi
 nginx -s reload
 
 # Получаем SSL-сертификаты с использованием Certbot (если они еще не получены)
-if [ ! -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem ]; then
+if [ ! -f /etc/letsencrypt/live/$DOMAIN_FOR_SSL/fullchain.pem ]; then
     echo "Получаем SSL сертификаты для $DOMAIN с Let's Encrypt..."
-    certbot --nginx -d $DOMAIN -d www.$DOMAIN --agree-tos --non-interactive --email $EMAIL
+    certbot --nginx -d $DOMAIN_FOR_SSL -d www.$DOMAIN_FOR_SSL --agree-tos --non-interactive --email $EMAIL_FOR_SSL
 else
-    echo "SSL сертификаты для $DOMAIN уже существуют!"
+    echo "SSL сертификаты для $DOMAIN_FOR_SSL уже существуют!"
 fi
 
 # Запускаем Nginx после получения сертификатов

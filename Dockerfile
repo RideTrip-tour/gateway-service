@@ -5,6 +5,11 @@ FROM nginx:alpine
 RUN apk update && \
     apk add --no-cache bash certbot nginx-utils curl
 
+# Скачиваем nginx-prometheus-exporter
+RUN curl -LO https://github.com/nginxinc/nginx-prometheus-exporter/releases/download/v0.10.0/nginx-prometheus-exporter-0.10.0-linux-amd64.tar.gz \
+    && tar -xvzf nginx-prometheus-exporter-0.10.0-linux-amd64.tar.gz \
+    && mv nginx-prometheus-exporter-0.10.0-linux-amd64/nginx-prometheus-exporter /usr/local/bin/
+
 # Копируем конфигурацию Nginx в контейнер
 COPY nginx.conf /etc/nginx/nginx.conf
 
@@ -19,12 +24,16 @@ COPY .env /root/.env
 RUN mkdir -p /etc/letsencrypt /var/lib/letsencrypt
 
 # Устанавливаем скрипт для получения сертификатов при запуске контейнера
-COPY ./scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY ./scripts/ssl_serts.sh /ssl_serts.sh
+RUN chmod +x /ssl_serts.sh
+
+# Скрипт для запуска
+COPY ./scripts/start.sh /start.sh
+RUN chmod +x /start.sh
 
 # Открываем порты для HTTP и HTTPS
 EXPOSE 80 443
 
 # Запуск контейнера
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/ssl_serts.sh"]
+CMD ["/start.sh"]
