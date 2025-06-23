@@ -60,6 +60,9 @@ API Gateway	- Traefik/NGINX
 JWT_SECRET_KEY=secret
 AUTH_SERVICE_URL=http://auth-service:8000
 REDIS_URL=redis://redis:6379
+REDIS_TTL=300
+RATE_LIMIT=100
+PUBLIC_PATHS='["/health","/auth/","/docs","/openapi.json","/redoc"]'
 ```
 
 ## 3. Требования к инфраструктуре
