@@ -8,8 +8,8 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-# Middleware для проверки JWT
 async def jwt_middleware(request: Request):
+    """Middleware для проверки JWT токена."""
     public_paths = settings.public_paths
     if any(request.url.path.startswith(path) for path in public_paths):
         return

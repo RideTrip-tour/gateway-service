@@ -56,14 +56,29 @@ API Gateway	- NGINX
 Логирование	- Loki
 
 ### 2.2 Конфигурация
-```env
-JWT_SECRET_KEY=secret
-AUTH_SERVICE_URL=http://auth-service:8000
-REDIS_URL=redis://redis:6379
+
+Настройки приложения загружаются из переменных окружения и файла `.env`.
+
+**Пример файла `.env`:**
+
+```dotenv
+# URL для подключения к Redis (включая пароль, если он есть)
+REDIS_URL="redis://default:your_password@127.0.0.1:6379/0"
+
+# Время жизни записей в кеше Redis в секундах
 REDIS_TTL=300
+
+# Ограничение количества запросов в минуту
 RATE_LIMIT=100
-PUBLIC_PATHS='["/health","/auth/","/docs","/openapi.json","/redoc"]'
+
+# Публичные пути, не требующие аутентификации (формат: JSON-массив в виде строки)
+PUBLIC_PATHS='["/health","/auth/login","/auth/register","/docs","/openapi.json","/redoc"]'
+
+# Карта маршрутизации от префикса пути к URL микросервиса (формат: JSON-объект в виде строки)
+SERVICE_MAP='{"auth": "http://127.0.0.1:8001/api", "plans": "http://127.0.0.1:8002/api"}'
 ```
+
+**Важно:** Значения для `PUBLIC_PATHS` и `SERVICE_MAP` должны быть валидными JSON-строками, заключенными в одинарные кавычки.
 
 ## 3. Требования к инфраструктуре
 ### 3.1 Kubernetes
@@ -108,4 +123,3 @@ deployment:
 - Задержка < 100ms на 95% запросов
 
 - Отсутствие 5xx ошибок в продакшене
-
