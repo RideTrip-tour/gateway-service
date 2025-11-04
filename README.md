@@ -3,7 +3,7 @@
 ## 1. Функциональные требования
 
 ### 1.1 Маршрутизация запросов
-- Перенаправление HTTP-запросов к микросервисам:
+- Проксирование HTTP-запросов к микросервисам:
 
 ```
 /auth/* → auth-service
@@ -51,7 +51,7 @@ Rate limiting:
 
 Язык - Python (FastAPI)
 Кэш -	Redis
-API Gateway	- Traefik/NGINX
+API Gateway	- NGINX
 Мониторинг	- Prometheus + Grafana
 Логирование	- Loki
 
