@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Microservices API Docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-standalone-preset.js"></script>
+  <script>
+    const ui = SwaggerUIBundle({
+      dom_id: '#swagger-ui',
+      urls: [
+        { name: "Auth Service", url: "/api/auth/openapi.json" },
+        { name: "Gateway Service", url: "/api/gateway/openapi.json" },
+        { name: "Other Service", url: "/api/other_service/openapi.json" }
+      ],
+      layout: "StandaloneLayout",
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset]
+    });
+  </script>
+</body>
+</html>
