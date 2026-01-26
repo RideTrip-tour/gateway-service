@@ -1,21 +1,26 @@
+import logging
 import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from config import settings
 
+logger = logging.getLogger(__name__)
 
 async def get_target_url(request: Request) -> str:
-    path = request.url.path.lstrip("/")
-    service_prefix = path.split("/")[0]
+    path = request.url.path
+    parts = path.split("/")
 
-    if service_prefix not in settings.service_map:
+    service = parts[2]
+
+    if service not in settings.service_map:
+        logging.info(f'Сервис не найден {service}')
         raise HTTPException(status_code=404, detail="Service not found")
 
-    target_base_url = settings.service_map[service_prefix]
-    target_path = path[len(service_prefix) :]
+    target_base_url = settings.service_map[service]
+    target_path = "/" + "/".join(parts[3:])
     target_url = f"{target_base_url}{target_path}"
-
+    logger.info(target_url)
     return target_url
 
 

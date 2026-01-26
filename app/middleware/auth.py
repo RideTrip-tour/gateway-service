@@ -13,6 +13,9 @@ async def jwt_middleware(request: Request):
     public_paths = settings.public_paths
     if any(request.url.path.startswith(path) for path in public_paths):
         return
+    
+    if request.url.path.endswith(("openapi.json", "docs", "redoc")):
+        return
 
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     if not token:
