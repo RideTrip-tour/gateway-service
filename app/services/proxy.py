@@ -18,9 +18,8 @@ async def get_target_url(request: Request) -> str:
         raise HTTPException(status_code=404, detail="Service not found")
 
     target_base_url = settings.service_map[service]
-    target_path = "/" + "/".join(parts[3:])
-    target_url = f"{target_base_url}{target_path}"
-    logger.info(target_url)
+    target_url = f"{target_base_url}{path}"
+    logger.info(f'Target_url: {target_url}')
     return target_url
 
 
