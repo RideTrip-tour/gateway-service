@@ -18,6 +18,9 @@ class Settings(BaseSettings):
         "/docs",
         "/openapi.json",
         "/redoc",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+        "/api/auth/verify",
     ]
     service_map: dict[str, str] = {
         "auth": "http://auth-service:8000",
