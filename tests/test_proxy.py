@@ -40,11 +40,12 @@ async def test_get_target_url_not_found():
 @pytest.mark.asyncio
 async def test_get_target_url_found():
     """Тест успешного обращения к сервису."""
+    path = f"/api/{service}/get_item/1"
     mock_request = MagicMock(spec=Request)
-    mock_request.url.path = f"/{service}/get_item/1"
+    mock_request.url.path = path
     with patch("app.services.proxy.settings.service_map", mock_service_map):
         target_url = await get_target_url(mock_request)
-        assert target_url == f"{service_url}/get_item/1"
+        assert target_url == f"{service_url}{path}"
 
 
 @pytest.mark.asyncio
@@ -82,7 +83,7 @@ async def test_get_response_success(httpx_mock):
     # 2. Создаем моковый Request
     mock_request = MagicMock(spec=Request)
     mock_request.app.state.http_client = httpx.AsyncClient()
-    mock_request.url.path = f"/{service}/test"
+    mock_request.url.path = f"/api/{service}/test"
     mock_request.method = "GET"
     mock_request.headers = {}
     mock_request.query_params = {}
@@ -106,7 +107,7 @@ async def test_get_response_service_unavailable(httpx_mock):
     httpx_mock.add_exception(httpx.ConnectError("Connection failed"))
     mock_request = MagicMock(spec=Request)
     mock_request.app.state.http_client = httpx.AsyncClient()
-    mock_request.url.path = f"/{service}/test"
+    mock_request.url.path = f"/api/{service}/test"
     mock_request.method = "GET"
     mock_request.headers = {}
     mock_request.query_params = {}
@@ -130,7 +131,9 @@ async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
     # 1. Готовим данные для запроса и мока
     request_body = {"name": "test_user"}
     response_body = {"id": 1, "name": "test_user"}
-    target_url = f"{service_url}/"
+    # Путь, по которому gateway обращается к целевому сервису
+    path = f"/api/{service}/"
+    target_url = f"{service_url}{path}"
 
     # 2. Настраиваем httpx_mock для имитации ответа от users-service
     httpx_mock.add_response(
@@ -144,8 +147,8 @@ async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
         "app.middleware.auth.validate_jwt", return_value={"id": 1, "name": "test_user"}
     ), patch("app.services.proxy.settings.service_map", mock_service_map):
         # 3. Отправляем запрос на gateway с помощью TestClient
-        response = client.post(
-            f"/{service}/",
+            response = client.post(
+            path,
             json=request_body,
             headers={
                 "X-Custom-Header": "value",
