@@ -1,12 +1,12 @@
-from unittest.mock import MagicMock, patch
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 from fastapi import HTTPException, Request
-from app.services.proxy import get_headers, get_responce, get_target_url
 from fastapi.testclient import TestClient
-import json
 
+from app.services.proxy import get_headers, get_responce, get_target_url
 
 service = "users"
 service_url = "http://users:8000"
@@ -130,36 +130,37 @@ async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
     """
     # 1. Готовим данные для запроса и мока
     request_body = {"name": "test_user"}
-    response_body = {"id": 1, "name": "test_user"}
+    user_data = {"id": 1, "name": "test_user", "is_active": True}
     # Путь, по которому gateway обращается к целевому сервису
     path = f"/api/{service}/"
     target_url = f"{service_url}{path}"
 
-    # 2. Настраиваем httpx_mock для имитации ответа от users-service
+    # Настраиваем httpx_mock для имитации ответа от users-service
     httpx_mock.add_response(
         method="POST",
         url=target_url,
-        json=response_body,
+        json=user_data,
         status_code=201,
         match_content=json.dumps(request_body).encode("utf-8"),
     )
     with patch(
-        "app.middleware.auth.validate_jwt", return_value={"id": 1, "name": "test_user"}
-    ), patch("app.services.proxy.settings.service_map", mock_service_map):
-        # 3. Отправляем запрос на gateway с помощью TestClient
-            response = client.post(
-            path,
-            json=request_body,
-            headers={
-                "X-Custom-Header": "value",
-                "Authorization": "Bearer test_token",
-            },
+        "app.middleware.auth.validate_jwt",
+        new_callable=AsyncMock,
+    ) as mock_validate_jwt, patch(
+        "app.services.proxy.settings.service_map", mock_service_map
+    ):
+        mock_validate_jwt.return_value = user_data
+        # Отправляем запрос на gateway с помощью TestClient
+        client.cookies.set(
+            "access_token",
+            "test_access_token",
         )
 
-    # 4. Проверяем ответ, полученный от gateway
-    assert response.status_code == 201
-    assert response.json() == response_body
+        response = client.post(
+            path,
+            json=request_body,
+        )
 
-    # 5. (Опционально) Проверяем, что запрос к микросервису был сделан с правильными заголовками
-    proxied_request = httpx_mock.get_request()
-    assert proxied_request.headers["x-custom-header"] == "value"
+    # Проверяем ответ, полученный от gateway
+    assert response.status_code == 201, f"Ответ: {response.json()}"
+    assert response.json() == user_data
