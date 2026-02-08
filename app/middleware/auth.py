@@ -13,16 +13,17 @@ async def jwt_middleware(request: Request):
     public_paths = settings.public_paths
     if any(request.url.path.startswith(path) for path in public_paths):
         return
-    
+
     if request.url.path.endswith(("openapi.json", "docs", "redoc")):
         return
 
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if not token:
+    access_token = request.cookies.get("access_token")
+    logger.info(f"access_token: {access_token}")
+    if not access_token:
         raise HTTPException(status_code=401, detail=f"Token missing {request.url.path}")
 
-    user = await validate_jwt(token)
-    if not user:
+    user_data = await validate_jwt(access_token)
+    if not user_data:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    request.state.user = user  # Добавляем user в запрос
+    request.state.user_data = user_data  # Добавляем user в запрос
