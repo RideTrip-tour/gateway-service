@@ -28,7 +28,7 @@ class Settings(BaseSettings):
         "auth": "http://auth-service:8000",
         "plans": "http://plans-service:8000",
         "locations": "http://locations-service:8000",
-        "users": "http://users-service:8000",
+        "users": "http://auth-service:8000",
         "activities": "http://activities-service:8000",
         "routes": "http://routes-service:8000",
         "departure": "http://departure-service:8000",
