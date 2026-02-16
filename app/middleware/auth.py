@@ -18,7 +18,6 @@ async def jwt_middleware(request: Request):
         return
 
     access_token = request.cookies.get("access_token")
-    logger.info(f"access_token: {access_token}")
     if not access_token:
         raise HTTPException(status_code=401, detail=f"Token missing {request.url.path}")
 
