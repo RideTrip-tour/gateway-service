@@ -4,12 +4,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    jwt_secret: str = os.getenv("JWT_SECRET", "secret")
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
-    gateway_name: str = os.getenv("GATEWAY_NAME", "Gate")
+    jwt_secret: str = "secret"
+    jwt_algorithm: str = "HS256"
+    gateway_name: str = "Gate"
+    debug: bool = False
 
     # Redis
-    redis_url: str = os.getenv("REDIS_URL", "redis://redis:6379")
+    redis_url: str = "redis://redis:6379"
     redis_ttl: int = 300  # время жизни кеша по умолчанию
     rate_limit: int = 100  # запросов в минуту
     public_paths: list[str] = [
@@ -36,6 +37,11 @@ class Settings(BaseSettings):
         "pdf": "http://pdf-service:8000",
         "bot": "http://bot-service:8000",
     }
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
