@@ -1,11 +1,13 @@
 import logging
 import httpx
+import http.cookies
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from config import settings
 
 logger = logging.getLogger(__name__)
+
 
 async def get_target_url(request: Request) -> str:
     path = request.url.path
@@ -14,12 +16,12 @@ async def get_target_url(request: Request) -> str:
     service = parts[2]
 
     if service not in settings.service_map:
-        logging.info(f'Сервис не найден {service}')
+        logging.info(f"Сервис не найден {service}")
         raise HTTPException(status_code=404, detail="Service not found")
 
     target_base_url = settings.service_map[service]
     target_url = f"{target_base_url}{path}"
-    logger.info(f'Target_url: {target_url}')
+    logger.info(f"Target_url: {target_url}")
     return target_url
 
 
@@ -61,11 +63,25 @@ async def get_responce(request: Request) -> httpx.Response:
 async def reverse_proxy(request: Request):
     """
     Проксирует запрос к соответствующему микросервису.
+    Переустанавливает Cookies
     """
-    responce = await get_responce(request)
+    response = await get_responce(request)
+    # Извлекаем и парсим cookies
+    raw_cookies = response.headers.pop("set-cookie", "")
+    cookies = http.cookies.SimpleCookie()
+    cookies.load(raw_cookies)
 
-    return StreamingResponse(
-        responce.aiter_raw(),
-        status_code=responce.status_code,
-        headers=responce.headers,
+    # Создаём потоковый ответ
+    stream_response = StreamingResponse(
+        response.aiter_raw(),
+        status_code=response.status_code,
+        headers=response.headers,
     )
+
+    # Добавляем каждый cookie отдельно
+    for morsel in cookies.values():
+        stream_response.raw_headers.append(
+            (b"set-cookie", morsel.OutputString().encode("utf-8"))
+        )
+
+    return stream_response
