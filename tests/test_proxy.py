@@ -1,4 +1,3 @@
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -141,7 +140,7 @@ async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
         url=target_url,
         json=user_data,
         status_code=201,
-        match_content=json.dumps(request_body).encode("utf-8"),
+        match_json=request_body,
     )
     with patch(
         "app.middleware.auth.validate_jwt",
