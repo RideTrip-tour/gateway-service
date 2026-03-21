@@ -13,15 +13,22 @@ from fastapi_limiter.depends import RateLimiter
 from app.middleware.auth import jwt_middleware
 from app.services.proxy import reverse_proxy
 from config import settings
+import asyncio
+from app.services.openapi_aggregator import (
+    build_openapi_urls,
+    fetch_openapi_schema,
+    merge_openapi_schemas,
+)
 
 logging.basicConfig(level=logging.INFO)
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Перед стартом приложения
-    redis_client = await redis.Redis.from_url(settings.redis_url)
-    await FastAPILimiter.init(redis_client)
+    # redis_client = await redis.Redis.from_url(settings.redis_url)
+    # await FastAPILimiter.init(redis_client)
     # Создаем один httpx клиент на все время жизни приложения
     app.state.http_client = httpx.AsyncClient()
     yield
@@ -76,3 +83,16 @@ async def swagger_ui():
     DOCS_FILE = os.path.join(BASE_DIR, "app", "services", "docs.html")
     with open(DOCS_FILE, "r") as f:
         return HTMLResponse(content=f.read(), status_code=200)
+
+@app.get("/openapi.json", include_in_schema=False)
+async def unified_openapi():
+    client = app.state.http_client
+    openapi_urls = build_openapi_urls(settings.service_map)
+
+    schemas = await asyncio.gather(*[
+        fetch_openapi_schema(client, service_name, url)
+        for service_name, url in openapi_urls.items()
+    ])
+
+    merged_schema = merge_openapi_schemas([s for s in schemas if s])
+    return JSONResponse(content=merged_schema)
