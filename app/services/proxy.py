@@ -68,6 +68,7 @@ async def reverse_proxy(request: Request):
     response = await get_responce(request)
     # Извлекаем и парсим cookies
     raw_cookies = response.headers.pop("set-cookie", "")
+    logger.info(f'cookies: {raw_cookies}')
     cookies = http.cookies.SimpleCookie()
     cookies.load(raw_cookies)
 
