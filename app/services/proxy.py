@@ -84,5 +84,5 @@ async def reverse_proxy(request: Request):
         stream_response.raw_headers.append(
             (b"set-cookie", morsel.OutputString().encode("utf-8"))
         )
-
+    logger.info(f'cookies: {stream_response.raw_headers}')
     return stream_response
