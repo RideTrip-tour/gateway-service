@@ -1,6 +1,5 @@
 import logging
 import httpx
-import http.cookies
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
@@ -63,26 +62,27 @@ async def get_responce(request: Request) -> httpx.Response:
 async def reverse_proxy(request: Request):
     """
     Проксирует запрос к соответствующему микросервису.
-    Переустанавливает Cookies
+    Корректно прокидывает многозначные Set-Cookie заголовки.
     """
     response = await get_responce(request)
-    # Извлекаем и парсим cookies
-    raw_cookies = response.headers.pop("set-cookie", "")
-    logger.info(f'cookies: {raw_cookies}')
-    cookies = http.cookies.SimpleCookie()
-    cookies.load(raw_cookies)
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    headers = {
+        key: value
+        for key, value in response.headers.items()
+        if key.lower() not in {"set-cookie", "content-length"}
+    }
 
     # Создаём потоковый ответ
     stream_response = StreamingResponse(
         response.aiter_raw(),
         status_code=response.status_code,
-        headers=response.headers,
+        headers=headers,
     )
 
-    # Добавляем каждый cookie отдельно
-    for morsel in cookies.values():
+    # Set-Cookie нельзя безопасно схлопывать в одну строку:
+    # каждый cookie должен быть отдельным заголовком.
+    for cookie in set_cookie_headers:
         stream_response.raw_headers.append(
-            (b"set-cookie", morsel.OutputString().encode("utf-8"))
+            (b"set-cookie", cookie.encode("utf-8"))
         )
-    logger.info(f'cookies: {stream_response.raw_headers}')
     return stream_response
