@@ -30,8 +30,11 @@ async def get_headers(request: Request) -> dict:
     }
 
     # Добавляем информацию о пользователе, если он аутентифицирован
-    if user := getattr(request.state, "user", None):
-        headers["X-User-ID"] = str(user.get("user_id"))
+    user = getattr(request.state, "user", None)
+    if user:
+        user_id = user.get("user_id") or user.get("sub") or user.get("id")
+        if user_id is not None:
+            headers["X-User-ID"] = str(user_id)
 
     return headers
 

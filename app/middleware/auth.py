@@ -25,4 +25,4 @@ async def jwt_middleware(request: Request):
     if not user_data:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    request.state.user_data = user_data  # Добавляем user в запрос
+    request.state.user = user_data

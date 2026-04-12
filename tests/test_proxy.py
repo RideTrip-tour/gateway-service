@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -52,7 +53,7 @@ async def test_get_headers_unauthenticated():
     """Тест: для анонимного пользователя заголовок X-User-ID не добавляется."""
     mock_request = MagicMock(spec=Request)
     mock_request.headers = {"host": "test.com", "accept": "application/json"}
-    mock_request.state.user = None
+    mock_request.state = SimpleNamespace(user=None)
 
     headers = await get_headers(mock_request)
 
@@ -66,11 +67,23 @@ async def test_get_headers_authenticated():
     """Тест: для аутентифицированного пользователя добавляется заголовок X-User-ID."""
     mock_request = MagicMock(spec=Request)
     mock_request.headers = {}
-    mock_request.state.user = {"user_id": 123}
+    mock_request.state = SimpleNamespace(user={"user_id": 123})
 
     headers = await get_headers(mock_request)
 
     assert headers["X-User-ID"] == "123"
+
+
+@pytest.mark.asyncio
+async def test_get_headers_authenticated_uses_sub_fallback():
+    """Если user_id отсутствует, заголовок должен браться из sub."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers = {}
+    mock_request.state = SimpleNamespace(user={"sub": "456"})
+
+    headers = await get_headers(mock_request)
+
+    assert headers["X-User-ID"] == "456"
 
 
 @pytest.mark.asyncio

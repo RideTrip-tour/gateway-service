@@ -1,125 +1,72 @@
-# Техническое задание на разработку `gateway-service`
+# Gateway Service
 
-## 1. Функциональные требования
+Gateway Service принимает входящие запросы и проксирует их в микросервисы проекта `trip-constructor`.
 
-### 1.1 Маршрутизация запросов
-- Проксирование HTTP-запросов к микросервисам:
+Его основная задача - единая точка входа для API, проверка JWT и перенос контекста пользователя в downstream-сервисы.
 
-```
-/auth/* → auth-service
-/plans/* → plans-service
-/locations/* → locations-service
-/users/* → users-service 
-/activities/* → activities-service
-/routes/* → routes-service
-/departure/* → departure-service
-/pricing/* → pricing-service 
-/pdf/* → pdf-service
-/bot/* → bot-service 
-```
+## Что делает gateway
 
-- Поддержка динамического добавления маршрутов
-- Кэширование ответов (TTL 5 мин)
+- проксирует запросы в `auth`, `plans`, `locations`, `users`, `activities`, `routes`, `departure`, `pricing`, `pdf` и `bot` сервисы;
+- проверяет access token до проксирования;
+- сохраняет данные пользователя в `request.state.user`;
+- добавляет `X-User-ID` в исходящий запрос к микросервису;
+- отдаёт публичные маршруты без аутентификации;
+- ограничивает частоту запросов.
 
-### 1.2 Аутентификация и авторизация
-- Валидация JWT через интеграцию с `auth-service`:
-```json
-POST /auth/validate
-{"token": "JWT"}
-```
+## Как передаётся пользовательский контекст
 
-- Кэширование результатов валидации (Redis)
+После успешной проверки JWT middleware кладёт decoded payload в `request.state.user`.
 
-Заголовки:
-```
-Authorization: Bearer <JWT>
+Дальше proxy слой:
 
-X-User-ID (после аутентификации)
-```
+- читает `request.state.user`;
+- достаёт идентификатор пользователя из `user_id`, `sub` или `id`;
+- добавляет его в заголовок `X-User-ID`.
 
-### 1.3 Безопасность
-Rate limiting:
+Если downstream-сервису нужен весь контекст пользователя, он может читать `request.state.user` в своём middleware или endpoint-логике.
 
-100 RPM для авторизованных
+Подробное описание находится в отдельном документе:
 
-10 RPM для анонимных
+- [`docs/request-context.md`](docs/request-context.md)
 
-Защита от DDoS
+## Маршрутизация
 
-## 2. Технические требования
-### 2.1 Стек технологий
+Gateway проксирует запросы по префиксу пути:
 
-Язык - Python (FastAPI)
-Кэш -	Redis
-API Gateway	- NGINX
-Мониторинг	- Prometheus + Grafana
-Логирование	- Loki
+- `/auth/*` -> `auth-service`
+- `/plans/*` -> `plans-service`
+- `/locations/*` -> `locations-service`
+- `/users/*` -> `users-service`
+- `/activities/*` -> `activities-service`
+- `/routes/*` -> `routes-service`
+- `/departure/*` -> `departure-service`
+- `/pricing/*` -> `pricing-service`
+- `/pdf/*` -> `pdf-service`
+- `/bot/*` -> `bot-service`
 
-### 2.2 Конфигурация
+## Конфигурация
 
-Настройки приложения загружаются из переменных окружения и файла `.env`.
+Основные настройки задаются через `.env`:
 
-**Пример файла `.env`:**
+- `REDIS_URL`
+- `REDIS_TTL`
+- `RATE_LIMIT`
+- `PUBLIC_PATHS`
+- `SERVICE_MAP`
 
-```dotenv
-# URL для подключения к Redis (включая пароль, если он есть)
-REDIS_URL="redis://default:your_password@127.0.0.1:6379/0"
+`PUBLIC_PATHS` и `SERVICE_MAP` должны быть валидными JSON-строками.
 
-# Время жизни записей в кеше Redis в секундах
-REDIS_TTL=300
+## Запуск
 
-# Ограничение количества запросов в минуту
-RATE_LIMIT=100
-
-# Публичные пути, не требующие аутентификации (формат: JSON-массив в виде строки)
-PUBLIC_PATHS='["/health","/auth/login","/auth/register","/docs","/openapi.json","/redoc"]'
-
-# Карта маршрутизации от префикса пути к URL микросервиса (формат: JSON-объект в виде строки)
-SERVICE_MAP='{"auth": "http://127.0.0.1:8001/api", "plans": "http://127.0.0.1:8002/api"}'
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 
-**Важно:** Значения для `PUBLIC_PATHS` и `SERVICE_MAP` должны быть валидными JSON-строками, заключенными в одинарные кавычки.
+## Документация
 
-## 3. Требования к инфраструктуре
-### 3.1 Kubernetes
-
-```yaml
-deployment:
-  replicas: 2
-  probes:
-    liveness: /health
-    readiness: /health
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 512Mi
-```
-
-## 4. Этапы разработки
-1. Проектирование (3 дня)
-
-- Схема маршрутизации
-
-- API контракты
-
-2. Реализация (10 дней)
-
-- Базовый функционал
-
-- Интеграции
-
-3. Тестирование (5 дней)
-
-- Юнит-тесты
-
-- Нагрузочное тестирование
-
-5. Критерии приемки
-- 100% покрытие тестами критического функционала
-
-- Задержка < 100ms на 95% запросов
-
-- Отсутствие 5xx ошибок в продакшене
+- [`docs/request-context.md`](docs/request-context.md) - передача данных пользователя через `request.state.user`;
+- [`app/middleware/auth.py`](app/middleware/auth.py) - JWT middleware;
+- [`app/services/proxy.py`](app/services/proxy.py) - проксирование и `X-User-ID`.
