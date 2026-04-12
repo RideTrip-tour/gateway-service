@@ -14,7 +14,7 @@ async def jwt_middleware(request: Request):
     if any(request.url.path.startswith(path) for path in public_paths):
         return
 
-    if request.url.path.endswith(("openapi.json", "docs", "redoc")):
+    if request.url.path.endswith(("openapi.json", "docs", "redoc", "health")):
         return
 
     access_token = request.cookies.get("access_token")
