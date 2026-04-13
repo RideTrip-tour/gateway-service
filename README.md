@@ -23,7 +23,8 @@ Gateway Service принимает входящие запросы и прокс
 - достаёт идентификатор пользователя из `user_id`, `sub` или `id`;
 - добавляет его в заголовок `X-User-ID`.
 
-Если downstream-сервису нужен весь контекст пользователя, он может читать `request.state.user` в своём middleware или endpoint-логике.
+Если downstream-сервису нужен весь контекст пользователя, gateway также добавляет `X-User-Claims` (base64url(JSON payload)).
+Downstream-сервис может восстановить `request.state.user` из этого заголовка в своём middleware или dependency.
 
 Подробное описание находится в отдельном документе:
 
@@ -67,6 +68,6 @@ uvicorn main:app --reload
 
 ## Документация
 
-- [`docs/request-context.md`](docs/request-context.md) - передача данных пользователя через `request.state.user`;
+- [`docs/request-context.md`](docs/request-context.md) - передача данных пользователя через `X-User-ID` / `X-User-Claims`;
 - [`app/middleware/auth.py`](app/middleware/auth.py) - JWT middleware;
-- [`app/services/proxy.py`](app/services/proxy.py) - проксирование и `X-User-ID`.
+- [`app/services/proxy.py`](app/services/proxy.py) - проксирование и заголовки контекста пользователя.

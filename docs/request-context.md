@@ -23,7 +23,22 @@ request.state.user
 
 ## Как достать данные в другом сервисе
 
-В middleware, dependency или endpoint можно читать данные так:
+Gateway передаёт пользовательский контекст в downstream-сервисы через HTTP-заголовки.
+
+Если нужен только идентификатор пользователя, gateway добавляет:
+
+```http
+X-User-ID: <user_id>
+```
+
+Если нужен полный payload, gateway добавляет:
+
+```http
+X-User-Claims: <base64url(JSON payload)>
+```
+
+Downstream-сервис должен восстановить `request.state.user` из `X-User-Claims` (в своём middleware/dependency),
+а дальше использовать как обычно:
 
 ```python
 from fastapi import Request
@@ -31,12 +46,6 @@ from fastapi import Request
 
 def get_user(request: Request):
     return getattr(request.state, "user", None)
-```
-
-Если нужен только идентификатор пользователя, gateway сам передаёт его в заголовке:
-
-```http
-X-User-ID: <user_id>
 ```
 
 ## Откуда берётся `X-User-ID`
@@ -54,4 +63,4 @@ Proxy слой пытается взять идентификатор из од�
 - микросервису нужно знать, кто сделал запрос;
 - сервис не хочет самостоятельно разбирать JWT;
 - сервису достаточно получить ID пользователя из заголовка;
-- нужен доступ к более полному payload через `request.state.user`.
+- нужен доступ к более полному payload через `X-User-Claims` и локальный `request.state.user`.

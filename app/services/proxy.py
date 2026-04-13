@@ -1,4 +1,7 @@
 import logging
+import base64
+import json
+
 import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -25,8 +28,16 @@ async def get_target_url(request: Request) -> str:
 
 
 async def get_headers(request: Request) -> dict:
+    blocked_headers = {
+        "host",
+        # Эти заголовки заполняет только gateway, чтобы клиент не мог их подделать
+        "x-user-id",
+        "x-user-claims",
+    }
     headers = {
-        key: value for key, value in request.headers.items() if key.lower() != "host"
+        key: value
+        for key, value in request.headers.items()
+        if key.lower() not in blocked_headers
     }
 
     # Добавляем информацию о пользователе, если он аутентифицирован
@@ -35,6 +46,11 @@ async def get_headers(request: Request) -> dict:
         user_id = user.get("user_id") or user.get("sub") or user.get("id")
         if user_id is not None:
             headers["X-User-ID"] = str(user_id)
+
+        raw_claims = json.dumps(
+            user, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
+        headers["X-User-Claims"] = base64.urlsafe_b64encode(raw_claims).decode("ascii")
 
     return headers
 
