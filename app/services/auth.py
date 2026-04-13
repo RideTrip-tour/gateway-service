@@ -26,7 +26,7 @@ async def validate_jwt(token: str) -> dict | None:
         logger.error(f"Ошибка декодирования токена: {e}")
         return None
         
-    if data and data.get("is_active", False):
+    if data and data.get("is_active", True):
         logger.debug(f"Данные пользователя: {data}")
         return data
 
