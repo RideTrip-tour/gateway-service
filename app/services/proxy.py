@@ -33,6 +33,8 @@ async def get_headers(request: Request) -> dict:
         # Эти заголовки заполняет только gateway, чтобы клиент не мог их подделать
         "x-user-id",
         "x-user-claims",
+        "x-forwarded-for",
+        "x-real-ip",
     }
     headers = {
         key: value
@@ -51,6 +53,12 @@ async def get_headers(request: Request) -> dict:
             user, ensure_ascii=False, separators=(",", ":")
         ).encode("utf-8")
         headers["X-User-Claims"] = base64.urlsafe_b64encode(raw_claims).decode("ascii")
+
+    client = getattr(request, "client", None)
+    client_host = getattr(client, "host", None)
+    if client_host:
+        headers["X-Forwarded-For"] = client_host
+        headers["X-Real-IP"] = client_host
 
     return headers
 

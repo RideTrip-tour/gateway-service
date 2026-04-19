@@ -54,12 +54,15 @@ async def test_get_headers_unauthenticated():
     mock_request = MagicMock(spec=Request)
     mock_request.headers = {"host": "test.com", "accept": "application/json"}
     mock_request.state = SimpleNamespace(user=None)
+    mock_request.client = SimpleNamespace(host="10.0.0.5")
 
     headers = await get_headers(mock_request)
 
     assert "X-User-ID" not in headers
     assert "host" not in headers
     assert headers["accept"] == "application/json"
+    assert headers["X-Forwarded-For"] == "10.0.0.5"
+    assert headers["X-Real-IP"] == "10.0.0.5"
 
 
 @pytest.mark.asyncio
@@ -68,10 +71,13 @@ async def test_get_headers_authenticated():
     mock_request = MagicMock(spec=Request)
     mock_request.headers = {}
     mock_request.state = SimpleNamespace(user={"user_id": 123})
+    mock_request.client = SimpleNamespace(host="10.0.0.6")
 
     headers = await get_headers(mock_request)
 
     assert headers["X-User-ID"] == "123"
+    assert headers["X-Forwarded-For"] == "10.0.0.6"
+    assert headers["X-Real-IP"] == "10.0.0.6"
 
 
 @pytest.mark.asyncio
@@ -80,10 +86,32 @@ async def test_get_headers_authenticated_uses_sub_fallback():
     mock_request = MagicMock(spec=Request)
     mock_request.headers = {}
     mock_request.state = SimpleNamespace(user={"sub": "456"})
+    mock_request.client = SimpleNamespace(host="10.0.0.7")
 
     headers = await get_headers(mock_request)
 
     assert headers["X-User-ID"] == "456"
+    assert headers["X-Forwarded-For"] == "10.0.0.7"
+    assert headers["X-Real-IP"] == "10.0.0.7"
+
+
+@pytest.mark.asyncio
+async def test_get_headers_overwrites_forwarded_headers():
+    """Клиентские X-Forwarded-For/X-Real-IP не должны проходить в downstream."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.headers = {
+        "x-forwarded-for": "1.2.3.4",
+        "x-real-ip": "1.2.3.4",
+        "accept": "application/json",
+    }
+    mock_request.state = SimpleNamespace(user=None)
+    mock_request.client = SimpleNamespace(host="10.0.0.8")
+
+    headers = await get_headers(mock_request)
+
+    assert headers["accept"] == "application/json"
+    assert headers["X-Forwarded-For"] == "10.0.0.8"
+    assert headers["X-Real-IP"] == "10.0.0.8"
 
 
 @pytest.mark.asyncio
@@ -99,6 +127,7 @@ async def test_get_response_success(httpx_mock):
     mock_request.method = "GET"
     mock_request.headers = {}
     mock_request.query_params = {}
+    mock_request.client = SimpleNamespace(host="10.0.0.9")
     # Use a proper mock for the async stream. For a GET request, the body is empty.
     mock_request.stream.return_value = MockAsyncIterator()
     mock_request.state.user = None
@@ -123,6 +152,7 @@ async def test_get_response_service_unavailable(httpx_mock):
     mock_request.method = "GET"
     mock_request.headers = {}
     mock_request.query_params = {}
+    mock_request.client = SimpleNamespace(host="10.0.0.9")
     # Use a proper mock for the async stream.
     mock_request.stream.return_value = MockAsyncIterator()
     mock_request.state.user = None
