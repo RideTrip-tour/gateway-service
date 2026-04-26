@@ -1,12 +1,11 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 from fastapi import HTTPException, Request
-from fastapi.testclient import TestClient
 
-from app.services.proxy import get_headers, get_responce, get_target_url
+from app.services.proxy import get_headers, get_responce, get_target_url, reverse_proxy
 
 service = "users"
 service_url = "http://users:8000"
@@ -165,7 +164,7 @@ async def test_get_response_service_unavailable(httpx_mock):
 
 
 @pytest.mark.asyncio
-async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
+async def test_reverse_proxy_integration(httpx_mock):
     """
     Интеграционный тест для reverse_proxy.
     Проверяет проксирование POST-запроса с телом и заголовками.
@@ -185,24 +184,23 @@ async def test_reverse_proxy_integration(client: TestClient, httpx_mock):
         status_code=201,
         match_json=request_body,
     )
-    with patch(
-        "app.middleware.auth.validate_jwt",
-        new_callable=AsyncMock,
-    ) as mock_validate_jwt, patch(
-        "app.services.proxy.settings.service_map", mock_service_map
-    ):
-        mock_validate_jwt.return_value = user_data
-        # Отправляем запрос на gateway с помощью TestClient
-        client.cookies.set(
-            "access_token",
-            "test_access_token",
-        )
+    mock_request = MagicMock(spec=Request)
+    mock_request.app.state.http_client = httpx.AsyncClient()
+    mock_request.url.path = path
+    mock_request.method = "POST"
+    mock_request.headers = {"content-type": "application/json"}
+    mock_request.query_params = {}
+    mock_request.client = SimpleNamespace(host="10.0.0.10")
+    mock_request.stream.return_value = MockAsyncIterator(
+        b'{"name":"test_user"}'
+    )
+    mock_request.state.user = user_data
 
-        response = client.post(
-            path,
-            json=request_body,
-        )
+    with patch("app.services.proxy.settings.service_map", mock_service_map):
+        response = await reverse_proxy(mock_request)
 
     # Проверяем ответ, полученный от gateway
-    assert response.status_code == 201, f"Ответ: {response.json()}"
-    assert response.json() == user_data
+    body = b"".join([chunk async for chunk in response.body_iterator])
+
+    assert response.status_code == 201, f"Ответ: {body!r}"
+    assert body == b'{"id":1,"name":"test_user","is_active":true}'
