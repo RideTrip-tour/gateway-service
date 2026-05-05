@@ -5,6 +5,7 @@ import json
 import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from config import settings
 
@@ -104,6 +105,7 @@ async def reverse_proxy(request: Request):
         response.aiter_raw(),
         status_code=response.status_code,
         headers=headers,
+        background=BackgroundTask(response.aclose),
     )
 
     # Set-Cookie нельзя безопасно схлопывать в одну строку:

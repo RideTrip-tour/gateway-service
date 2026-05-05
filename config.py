@@ -13,11 +13,6 @@ class Settings(BaseSettings):
     rate_limit: int = 100  # запросов в минуту
     public_paths: list[str] = [
         "/health",
-        "/api/auth/login",
-        "/api/auth/register",
-        "/api/auth/forgot-password",
-        "/api/auth/reset-password",
-        "/api/auth/verify",
     ]
     service_map: dict[str, str] = {
         "auth": "http://auth-service:8000",

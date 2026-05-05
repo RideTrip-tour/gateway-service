@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 async def validate_jwt(token: str) -> dict | None:
-
     try:
         data = jwt.decode(
             token,
@@ -27,7 +26,6 @@ async def validate_jwt(token: str) -> dict | None:
         return None
         
     if data and data.get("is_active", True):
-        logger.debug(f"Данные пользователя: {data}")
         return data
 
     return None
