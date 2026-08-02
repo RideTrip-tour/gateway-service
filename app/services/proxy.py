@@ -12,11 +12,23 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
+async def check_admin_permission():
+    return
+
+
+def is_admin_service(parts: list) -> bool:
+    return parts[2] == "admin"
+
+
 async def get_target_url(request: Request) -> str:
     path = request.url.path
     parts = path.split("/")
 
-    service = parts[2]
+    if is_admin_service(parts):
+        await check_admin_permission()
+        service = parts[3]
+    else:
+        service = parts[2]
 
     if service not in settings.service_map:
         logging.info(f"Сервис не найден {service}")
@@ -24,7 +36,7 @@ async def get_target_url(request: Request) -> str:
 
     target_base_url = settings.service_map[service]
     target_url = f"{target_base_url}{path}"
-    logger.info(f"Target_url: {target_url}")
+    logger.info("Target_url: %s", target_url)
     return target_url
 
 
@@ -50,9 +62,9 @@ async def get_headers(request: Request) -> dict:
         if user_id is not None:
             headers["X-User-ID"] = str(user_id)
 
-        raw_claims = json.dumps(
-            user, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        raw_claims = json.dumps(user, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
         headers["X-User-Claims"] = base64.urlsafe_b64encode(raw_claims).decode("ascii")
 
     client = getattr(request, "client", None)
@@ -111,7 +123,5 @@ async def reverse_proxy(request: Request):
     # Set-Cookie нельзя безопасно схлопывать в одну строку:
     # каждый cookie должен быть отдельным заголовком.
     for cookie in set_cookie_headers:
-        stream_response.raw_headers.append(
-            (b"set-cookie", cookie.encode("utf-8"))
-        )
+        stream_response.raw_headers.append((b"set-cookie", cookie.encode("utf-8")))
     return stream_response
