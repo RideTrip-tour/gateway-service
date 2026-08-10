@@ -1,9 +1,11 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi import HTTPException, Request
 import httpx
 import pytest
-from fastapi import HTTPException, Request
+from starlette.datastructures import QueryParams
+
 
 from app.services.proxy import get_headers, get_responce, get_target_url, reverse_proxy
 
@@ -125,7 +127,7 @@ async def test_get_response_success(httpx_mock):
     mock_request.url.path = f"/api/{service}/test"
     mock_request.method = "GET"
     mock_request.headers = {}
-    mock_request.query_params = {}
+    mock_request.query_params = QueryParams()
     mock_request.client = SimpleNamespace(host="10.0.0.9")
     # Use a proper mock for the async stream. For a GET request, the body is empty.
     mock_request.stream.return_value = MockAsyncIterator()
@@ -150,7 +152,7 @@ async def test_get_response_service_unavailable(httpx_mock):
     mock_request.url.path = f"/api/{service}/test"
     mock_request.method = "GET"
     mock_request.headers = {}
-    mock_request.query_params = {}
+    mock_request.query_params = QueryParams()
     mock_request.client = SimpleNamespace(host="10.0.0.9")
     # Use a proper mock for the async stream.
     mock_request.stream.return_value = MockAsyncIterator()
@@ -189,11 +191,9 @@ async def test_reverse_proxy_integration(httpx_mock):
     mock_request.url.path = path
     mock_request.method = "POST"
     mock_request.headers = {"content-type": "application/json"}
-    mock_request.query_params = {}
+    mock_request.query_params = QueryParams()
     mock_request.client = SimpleNamespace(host="10.0.0.10")
-    mock_request.stream.return_value = MockAsyncIterator(
-        b'{"name":"test_user"}'
-    )
+    mock_request.stream.return_value = MockAsyncIterator(b'{"name":"test_user"}')
     mock_request.state.user = user_data
 
     with patch("app.services.proxy.settings.service_map", mock_service_map):
@@ -204,3 +204,49 @@ async def test_reverse_proxy_integration(httpx_mock):
 
     assert response.status_code == 201, f"Ответ: {body!r}"
     assert body == b'{"id":1,"name":"test_user","is_active":true}'
+
+
+@pytest.mark.asyncio
+async def test_get_response_preserves_multiple_query_params():
+    from app.services.proxy import get_responce
+
+    received_request = None
+
+    async def handler(request: httpx.Request):
+        nonlocal received_request
+        received_request = request
+
+        return httpx.Response(200, request=request)
+
+    transport = httpx.MockTransport(handler)
+
+    async with httpx.AsyncClient(transport=transport) as client:
+        mock_request = MagicMock(spec=Request)
+
+        mock_request.app.state.http_client = client
+        mock_request.method = "GET"
+        mock_request.query_params = QueryParams(
+            [
+                ("region", "Московская область"),
+                ("region", "Кемеровская область"),
+                ("limit", "100"),
+            ]
+        )
+        mock_request.stream.return_value = MockAsyncIterator()
+
+        with (
+            patch(
+                "app.services.proxy.get_target_url",
+                new=AsyncMock(return_value="http://locations-service/api/locations"),
+            ),
+            patch(
+                "app.services.proxy.get_headers",
+                new=AsyncMock(return_value={}),
+            ),
+        ):
+            await get_responce(mock_request)
+
+    assert received_request.url.params.get_list("region") == [
+        "Московская область",
+        "Кемеровская область",
+    ]
