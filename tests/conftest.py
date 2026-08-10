@@ -1,8 +1,8 @@
-import fakeredis.aioredis
-from fastapi.testclient import TestClient
-import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
+import fakeredis.aioredis
+import pytest
+from fastapi.testclient import TestClient
 
 from main import app
 

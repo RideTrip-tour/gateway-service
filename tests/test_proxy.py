@@ -1,11 +1,10 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import HTTPException, Request
 import httpx
 import pytest
+from fastapi import HTTPException, Request
 from starlette.datastructures import QueryParams
-
 
 from app.services.proxy import get_headers, get_responce, get_target_url, reverse_proxy
 
