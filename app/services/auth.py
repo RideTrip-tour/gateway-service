@@ -24,7 +24,7 @@ async def validate_jwt(token: str) -> dict | None:
     except jwt.PyJWTError as e:
         logger.error(f"Ошибка декодирования токена: {e}")
         return None
-        
+
     if data and data.get("is_active", True):
         return data
 

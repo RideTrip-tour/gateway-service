@@ -35,7 +35,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
-    )
+)
 
 
 # Подключаем middleware
@@ -64,7 +64,8 @@ async def favicon():
 
 # Маршрут для проксирования. Должен быть последним.
 @app.api_route(
-    "/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+    "/api/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
 )
 async def proxy_requests(request: Request):
     return await reverse_proxy(request)

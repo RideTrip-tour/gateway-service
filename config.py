@@ -29,7 +29,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
-        secrets_dir='/run/secrets',
+        secrets_dir="/run/secrets",
     )
 
 

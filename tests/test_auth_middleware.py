@@ -15,10 +15,13 @@ async def test_jwt_middleware_stores_user_in_request_state():
         state=SimpleNamespace(),
     )
 
-    with patch("app.middleware.auth.settings.public_paths", []), patch(
-        "app.middleware.auth.validate_jwt",
-        new_callable=AsyncMock,
-    ) as mock_validate_jwt:
+    with (
+        patch("app.middleware.auth.settings.public_paths", []),
+        patch(
+            "app.middleware.auth.validate_jwt",
+            new_callable=AsyncMock,
+        ) as mock_validate_jwt,
+    ):
         mock_validate_jwt.return_value = {"sub": "123", "is_active": True}
         await jwt_middleware(request)
 
