@@ -35,7 +35,10 @@ jobs:
           python -m pip install ruff
 
       - name: Lint (ruff)
-        run: ruff check --select F,E9 .
+        run: |
+          ruff check --select F,E9 .
+          ruff check .
+          ruff format --check .
 
       - name: Tests (pytest)
         run: pytest -q
