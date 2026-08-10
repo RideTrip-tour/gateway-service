@@ -1,4 +1,3 @@
-
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,6 +18,7 @@ logging.basicConfig(level=logging.DEBUG)
 BASE_DIR = Path(__file__).resolve().parent
 DOCS_FILE = BASE_DIR / "app" / "services" / "docs.html"
 DOCS_CONTENT = DOCS_FILE.read_text(encoding="utf-8")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
