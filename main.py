@@ -1,11 +1,10 @@
-from contextlib import asynccontextmanager
 import logging
-import os
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-import redis.asyncio as redis
 import httpx
-from fastapi import Depends, FastAPI, Request, Response, status
-from fastapi import HTTPException
+import redis.asyncio as redis
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
@@ -15,6 +14,10 @@ from app.services.proxy import reverse_proxy
 from config import settings
 
 logging.basicConfig(level=logging.DEBUG)
+
+BASE_DIR = Path(__file__).resolve().parent
+DOCS_FILE = BASE_DIR / "app" / "services" / "docs.html"
+DOCS_CONTENT = DOCS_FILE.read_text(encoding="utf-8")
 
 
 @asynccontextmanager
@@ -35,7 +38,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
-    )
+)
 
 
 # Подключаем middleware
@@ -64,7 +67,8 @@ async def favicon():
 
 # Маршрут для проксирования. Должен быть последним.
 @app.api_route(
-    "/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+    "/api/{path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
 )
 async def proxy_requests(request: Request):
     return await reverse_proxy(request)
@@ -72,7 +76,7 @@ async def proxy_requests(request: Request):
 
 @app.get("/docs", include_in_schema=False)
 async def swagger_ui():
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DOCS_FILE = os.path.join(BASE_DIR, "app", "services", "docs.html")
-    with open(DOCS_FILE, "r") as f:
-        return HTMLResponse(content=f.read(), status_code=200)
+    return HTMLResponse(
+        content=DOCS_CONTENT,
+        status_code=200,
+    )

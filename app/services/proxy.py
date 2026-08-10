@@ -1,6 +1,6 @@
-import logging
 import base64
 import json
+import logging
 
 import httpx
 from fastapi import HTTPException, Request
@@ -31,7 +31,7 @@ async def get_target_url(request: Request) -> str:
         service = parts[2]
 
     if service not in settings.service_map:
-        logging.info(f"Сервис не найден {service}")
+        logger.info(f"Сервис не найден {service}")
         raise HTTPException(status_code=404, detail="Service not found")
 
     target_base_url = settings.service_map[service]
@@ -89,7 +89,7 @@ async def get_responce(request: Request) -> httpx.Response:
             method=request.method,
             url=target_url,
             headers=headers,
-            params=request.query_params,
+            params=request.query_params.multi_items(),
             content=body_stream,
         )
         resp = await client.send(req, stream=True)
