@@ -12,7 +12,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-async def check_admin_permission():
+async def check_admin_permission(request: Request) -> None:
     return
 
 
@@ -25,7 +25,6 @@ async def get_target_url(request: Request) -> str:
     parts = path.split("/")
 
     if is_admin_service(parts):
-        await check_admin_permission()
         service = parts[3]
     else:
         service = parts[2]
@@ -48,6 +47,7 @@ async def get_headers(request: Request) -> dict:
         "x-user-claims",
         "x-forwarded-for",
         "x-real-ip",
+        "x-client-type",
     }
     headers = {
         key: value
@@ -66,6 +66,10 @@ async def get_headers(request: Request) -> dict:
             "utf-8"
         )
         headers["X-User-Claims"] = base64.urlsafe_b64encode(raw_claims).decode("ascii")
+
+    client_type = getattr(request.state, "client_type", None)
+    if client_type:
+        headers["X-Client-Type"] = client_type
 
     client = getattr(request, "client", None)
     client_host = getattr(client, "host", None)
