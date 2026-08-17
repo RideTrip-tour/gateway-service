@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 
-from app.middleware.auth import jwt_middleware
+from app.middleware.auth import request_data_middleware
 from app.services.proxy import reverse_proxy
 from config import settings
 
@@ -24,13 +24,14 @@ DOCS_CONTENT = DOCS_FILE.read_text(encoding="utf-8")
 async def lifespan(app: FastAPI):
     # Перед стартом приложения
     redis_client = await redis.Redis.from_url(settings.redis_url)
+    app.state.redis = redis_client
     await FastAPILimiter.init(redis_client)
     # Создаем один httpx клиент на все время жизни приложения
     app.state.http_client = httpx.AsyncClient()
     yield
     # Перед остановкой приложения
     await app.state.http_client.aclose()
-    await FastAPILimiter.close()
+    await redis_client.aclose()
 
 
 app = FastAPI(
@@ -45,7 +46,8 @@ app = FastAPI(
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     try:
-        await jwt_middleware(request)
+        print("we are here")
+        await request_data_middleware(request)
     except HTTPException as exc:
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return await call_next(request)
