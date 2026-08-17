@@ -27,7 +27,10 @@ jobs:
           python -m pip install pytest pytest-asyncio ruff
 
       - name: Lint (ruff)
-        run: ruff check --select F,E9 .
+        run: |
+          ruff check --select F,E9 .
+          ruff check .
+          ruff format --check .
 
       - name: Tests
         run: pytest -q
