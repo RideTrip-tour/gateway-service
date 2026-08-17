@@ -126,12 +126,13 @@ async def test_get_response_success(httpx_mock):
     mock_request.app.state.http_client = httpx.AsyncClient()
     mock_request.url.path = f"/api/{service}/test"
     mock_request.method = "GET"
-    mock_request.headers = {}
+    mock_request.headers = {"content-type": "application/json"}
     mock_request.query_params = QueryParams()
     mock_request.client = SimpleNamespace(host="10.0.0.9")
     # Use a proper mock for the async stream. For a GET request, the body is empty.
     mock_request.stream.return_value = MockAsyncIterator()
     mock_request.state.user = None
+    mock_request.state.client_type = None
 
     # 3. Вызываем функцию и проверяем результат
     with patch("app.services.proxy.settings.service_map", mock_service_map):
@@ -157,6 +158,7 @@ async def test_get_response_service_unavailable(httpx_mock):
     # Use a proper mock for the async stream.
     mock_request.stream.return_value = MockAsyncIterator()
     mock_request.state.user = None
+    mock_request.state.client_type = None
 
     with patch("app.services.proxy.settings.service_map", mock_service_map):
         with pytest.raises(HTTPException) as e:
@@ -195,6 +197,7 @@ async def test_reverse_proxy_integration(httpx_mock):
     mock_request.client = SimpleNamespace(host="10.0.0.10")
     mock_request.stream.return_value = MockAsyncIterator(b'{"name":"test_user"}')
     mock_request.state.user = user_data
+    mock_request.state.client_type = "user"
 
     with patch("app.services.proxy.settings.service_map", mock_service_map):
         response = await reverse_proxy(mock_request)
