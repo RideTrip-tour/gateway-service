@@ -161,6 +161,10 @@ jobs:
               '
 
       - name: Notify successful deployment
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
         if: success()
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
@@ -186,14 +190,18 @@ jobs:
           ${RUN_URL}"
 
           if ! curl -sS -X POST \
-            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "message_thread_id=${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}" \
-            --data-urlencode "text=${MESSAGE}"; then
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${TELEGRAM_CHAT_ID}" \
+                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
+                --data-urlencode "text=${MESSAGE}"
               echo "Failed to send Telegram notification"
           fi
 
       - name: Notify failed deployment
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
         if: failure()
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
@@ -219,9 +227,9 @@ jobs:
           ${RUN_URL}"
 
           if ! curl -sS -X POST \
-            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "message_thread_id=${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}" \
-            --data-urlencode "text=${MESSAGE}"; then
+                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${TELEGRAM_CHAT_ID}" \
+                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
+                --data-urlencode "text=${MESSAGE}"
               echo "Failed to send Telegram notification"
           fi
