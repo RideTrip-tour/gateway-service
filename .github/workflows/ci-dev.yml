@@ -193,7 +193,7 @@ jobs:
                 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                 -d "chat_id=${TELEGRAM_CHAT_ID}" \
                 -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
-                --data-urlencode "text=${MESSAGE}"
+                --data-urlencode "text=${MESSAGE}"; then
               echo "Failed to send Telegram notification"
           fi
 
@@ -230,6 +230,6 @@ jobs:
                 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                 -d "chat_id=${TELEGRAM_CHAT_ID}" \
                 -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
-                --data-urlencode "text=${MESSAGE}"
+                --data-urlencode "text=${MESSAGE}"; then
               echo "Failed to send Telegram notification"
           fi
