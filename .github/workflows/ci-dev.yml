@@ -10,7 +10,11 @@ on:
 
 env:
   DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
-  GATEWAY_SWARM_SERVICE: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
+  SWARM_SERVICE: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
+  DATA_NETWORK: ${{ vars.DATA_NETWORK || 'data-network' }}
+  SERVICE_NAME: ${{ vars.SERVICE_NAME || 'gateway-service' }}
+  APP_NAME: ${{ vars.APP_NAME || 'gateway' }}
+  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'DEV' }}
 
 jobs:
   lint_test:
@@ -62,7 +66,7 @@ jobs:
         id: image
         run: |
           image_ref="${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}"
-          echo "GATEWAY_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          echo "IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
           echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
 
       - name: Build and push gateway-service
@@ -84,7 +88,7 @@ jobs:
     environment: DEV
     steps:
       - name: Compute image ref
-        run: echo "GATEWAY_IMAGE_REF=${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_REF=${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -95,14 +99,129 @@ jobs:
 
       - name: Create docker context
         run: |
+          set -euo pipefail
+          echo "DEPLOY_STEP=Preparation" >> "$GITHUB_ENV"
+
           docker context create swarm --docker "host=ssh://${{ secrets.SWARM_USER }}@${{ secrets.SWARM_HOST }}"
           docker --context swarm info
 
-      - name: Update gateway service
+      - name: Update ${{ env.SERVICE_NAME }}
         run: |
           set -euo pipefail
+          echo "DEPLOY_STEP=Swarm rollout" >> "$GITHUB_ENV"
+
           docker --context swarm service update \
             --with-registry-auth \
             --detach=false \
-            --image "$GATEWAY_IMAGE_REF" \
-            "$GATEWAY_SWARM_SERVICE"
+            --image "$IMAGE_REF" \
+            "$SWARM_SERVICE"
+
+      - name: Healthcheck ${{ env.SERVICE_NAME }}
+        run: |
+          set -euo pipefail
+          echo "DEPLOY_STEP=Healthcheck" >> "$GITHUB_ENV"
+          
+          healthcheck_service="${SERVICE_NAME}-healthcheck-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          cleanup() {
+            docker --context swarm service rm "$healthcheck_service" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          cleanup
+
+          HEALTHCHECK_URL="http://${{ env.SERVICE_NAME }}:8000/health"
+
+          echo "Healthcheck URL: ${HEALTHCHECK_URL}"
+
+          docker --context swarm service create \
+            --name "$healthcheck_service" \
+            --detach=false \
+            --restart-condition none \
+            --mode replicated-job \
+            --network "$DATA_NETWORK" \
+            --env "HEALTHCHECK_URL=$HEALTHCHECK_URL" \
+            --entrypoint sh \
+            curlimages/curl:8.10.1 \
+              -c '
+                for i in $(seq 1 30); do
+                  echo "Healthcheck attempt $i/30"
+
+                  if curl --fail --silent --show-error --max-time 5 \
+                    "$HEALTHCHECK_URL"; then
+                    echo "Healthcheck passed"
+                    exit 0
+                  fi
+
+                  echo "Healthcheck attempt $i failed"
+                  sleep 5
+                done
+
+                echo "Healthcheck failed"
+                exit 1
+              '
+
+      - name: Notify successful deployment
+        if: success()
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MESSAGE="✅ DEPLOY SUCCESS
+
+          Service: ${SERVICE_NAME}
+          Environment: ${ENVIRONMENT}
+          Version: dev-${SHORT_SHA}
+          Commit: ${SHORT_SHA}
+          Branch: ${GITHUB_REF_NAME}
+
+          👤 Triggered by: ${GITHUB_ACTOR}
+
+          🐳 Image:
+          ${IMAGE_REF}
+
+          🏥 Healthcheck: OK
+          📦 Swarm service: ${SWARM_SERVICE}
+
+          🔗 GitHub:
+          ${RUN_URL}"
+
+          if ! curl -sS -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "message_thread_id=${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}" \
+            --data-urlencode "text=${MESSAGE}"; then
+              echo "Failed to send Telegram notification"
+          fi
+
+      - name: Notify failed deployment
+        if: failure()
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          MESSAGE="❌ DEPLOY FAILED
+
+          Service: ${SERVICE_NAME}
+          Environment: ${ENVIRONMENT}
+          Version: dev-${SHORT_SHA}
+          Commit: ${SHORT_SHA}
+          Branch: ${GITHUB_REF_NAME}
+
+          👤 Triggered by: ${GITHUB_ACTOR}
+
+          💥 Failed step:
+          ${DEPLOY_STEP:-Unknown}
+
+          📦 Swarm service:
+          ${SWARM_SERVICE}
+
+          🔗 GitHub:
+          ${RUN_URL}"
+
+          if ! curl -sS -X POST \
+            "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d "message_thread_id=${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}" \
+            --data-urlencode "text=${MESSAGE}"; then
+              echo "Failed to send Telegram notification"
+          fi
