@@ -36,7 +36,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.test.txt
-          python -m pip install ruff
 
       - name: Lint (ruff)
         run: |
@@ -165,10 +164,25 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
+          GH_TOKEN: ${{ github.token }}
         if: success()
         run: |
           SHORT_SHA="${GITHUB_SHA::7}"
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          PR_INFO="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=${GITHUB_REF_NAME}&per_page=100" \
+              --jq '.[] | select(.merged_at != null) | select(.merge_commit_sha == env.GITHUB_SHA) | "\(.number)|\(.title)|\(.user.login)"'
+          )"
+
+          if [[ -n "$PR_INFO" ]]; then
+            IFS='|' read -r PR_NUMBER PR_TITLE PR_AUTHOR <<< "$PR_INFO"
+          else
+            PR_NUMBER=""
+            PR_TITLE=""
+            PR_AUTHOR="Direct push"
+          fi
 
           MESSAGE="✅ DEPLOY SUCCESS
 
@@ -177,7 +191,11 @@ jobs:
           Version: dev-${SHORT_SHA}
           Commit: ${SHORT_SHA}
           Branch: ${GITHUB_REF_NAME}
+          
+          🔀 PR #${PR_NUMBER}
+          ${PR_TITLE}
 
+          👤 PR author: ${PR_AUTHOR}
           👤 Triggered by: ${GITHUB_ACTOR}
 
           🐳 Image:
@@ -197,17 +215,49 @@ jobs:
               echo "Failed to send Telegram notification"
           fi
 
-      - name: Notify failed deployment
+  notify_failure:
+    runs-on: ubuntu-latest
+    needs:
+      - lint_test
+      - build_push
+      - deploy
+    if: ${{ always() && (needs.lint_test.result == 'failure' || needs.build_push.result == 'failure' || needs.deploy.result == 'failure') }}
+    steps:
+      - name: Notify failed pipeline
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
-        if: failure()
+          GH_TOKEN: ${{ github.token }}
         run: |
+          FAILED_JOB="Unknown"
+
+          if [[ "${{ needs.lint_test.result }}" == "failure" ]]; then
+            FAILED_JOB="Lint/Test"
+          elif [[ "${{ needs.build_push.result }}" == "failure" ]]; then
+            FAILED_JOB="Build/Push"
+          elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
+            FAILED_JOB="Deploy"
+          fi
+
           SHORT_SHA="${GITHUB_SHA::7}"
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-          MESSAGE="❌ DEPLOY FAILED
+          PR_INFO="$(
+            gh api \
+              "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=${GITHUB_REF_NAME}&per_page=100" \
+              --jq '.[] | select(.merged_at != null) | select(.merge_commit_sha == env.GITHUB_SHA) | "\(.number)|\(.title)|\(.user.login)"'
+          )"
+
+          if [[ -n "$PR_INFO" ]]; then
+            IFS='|' read -r PR_NUMBER PR_TITLE PR_AUTHOR <<< "$PR_INFO"
+          else
+            PR_NUMBER=""
+            PR_TITLE=""
+            PR_AUTHOR="Direct push"
+          fi
+
+          MESSAGE="❌ PIPELINE FAILED
 
           Service: ${SERVICE_NAME}
           Environment: ${ENVIRONMENT}
@@ -215,21 +265,22 @@ jobs:
           Commit: ${SHORT_SHA}
           Branch: ${GITHUB_REF_NAME}
 
+          💥 Failed stage:
+          ${FAILED_JOB}
+
+          🔀 PR #${PR_NUMBER}
+          ${PR_TITLE}
+
+          👤 PR author: ${PR_AUTHOR}
           👤 Triggered by: ${GITHUB_ACTOR}
-
-          💥 Failed step:
-          ${DEPLOY_STEP:-Unknown}
-
-          📦 Swarm service:
-          ${SWARM_SERVICE}
 
           🔗 GitHub:
           ${RUN_URL}"
 
           if ! curl -sS -X POST \
-                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                -d "chat_id=${TELEGRAM_CHAT_ID}" \
-                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
-                --data-urlencode "text=${MESSAGE}"; then
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
+            --data-urlencode "text=${MESSAGE}"; then
               echo "Failed to send Telegram notification"
           fi
