@@ -11,11 +11,19 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379"
     redis_ttl: int = 300  # время жизни кеша по умолчанию
     rate_limit: int = 100  # запросов в минуту
+    proxy_timeout: float = 30.0
+    cache_enabled: bool = True
+    response_cache_ttl: int = 60
+    cacheable_paths: list[str] = [
+        "/api/locations",
+        "/api/references",
+    ]
     public_paths: list[str] = [
         "/health",
     ]
     service_map: dict[str, str] = {
         "auth": "http://auth-service:8000",
+        "locations": "http://location-service:8000",
         "profile": "http://profile-service:8000",
         "users": "http://auth-service:8000",
         "activities": "http://activities-service:8000",

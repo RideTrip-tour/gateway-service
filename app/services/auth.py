@@ -16,10 +16,10 @@ async def validate_jwt(token: str) -> dict | None:
             algorithms=settings.jwt_algorithm,
         )
     except jwt.ExpiredSignatureError:
-        logger.warning(f"Токен просрочен: {token}")
+        logger.warning("Access token expired")
         return None
     except jwt.InvalidAudienceError:
-        logger.warning(f"Неверный audience для токена: {token}")
+        logger.warning("Invalid access token audience")
         return None
     except jwt.PyJWTError as e:
         logger.error(f"Ошибка декодирования токена: {e}")
