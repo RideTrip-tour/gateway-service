@@ -52,10 +52,19 @@ Gateway проксирует запросы по префиксу пути:
 - `REDIS_URL`
 - `REDIS_TTL`
 - `RATE_LIMIT`
+- `PROXY_TIMEOUT`
+- `CACHE_ENABLED`
+- `RESPONSE_CACHE_TTL`
+- `CACHEABLE_PATHS`
 - `PUBLIC_PATHS`
 - `SERVICE_MAP`
 
-`PUBLIC_PATHS` и `SERVICE_MAP` должны быть валидными JSON-строками.
+`PUBLIC_PATHS`, `CACHEABLE_PATHS` и `SERVICE_MAP` должны быть валидными JSON-строками.
+
+Response cache применяется только для публичных `GET`/`HEAD` запросов без cookies,
+`Authorization`, `X-User-ID` и `X-User-Claims`, и только для путей из `CACHEABLE_PATHS`.
+По умолчанию кешируются публичные справочные маршруты `/api/locations` и
+`/api/references`.
 
 ## Запуск
 
