@@ -34,11 +34,11 @@ class Settings(BaseSettings):
         "bot": "http://bot-service:8000",
     }
     service_tokens: dict[str, str] = {
-        "auth": "a1b2c3d4e5f67890abcdef1234567890",
-        "profile": "a1b2c3d4e5f67890abcdef1234567890",
-        "users": "a1b2c3d4e5f67890abcdef1234567890",
-        "locations": "a1b2c3d4e5f67890abcdef1234567890",
-        "admin": "a1b2c3d4e5f67890abcdef1234567890",
+        "auth": "token",
+        "profile": "token",
+        "users": "token",
+        "locations": "token",
+        "admin": "token",
     }
     service_public_keys: dict[str, str] = {
         "admin": "MCowBQYDK2VwAyEAc3sM/UT4QxbviVHTZDlCYvuRqtJb5GBsTdUUQnKWxCQ=",
