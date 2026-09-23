@@ -7,8 +7,8 @@ import httpx
 import redis.asyncio as redis
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 
 from app.middleware.auth import request_data_middleware
 from app.middleware.request_logging import request_logging_middleware
@@ -30,7 +30,6 @@ async def lifespan(app: FastAPI):
     logger.info("gateway-service is starting up")
     redis_client = await redis.Redis.from_url(settings.redis_url)
     app.state.redis = redis_client
-    await FastAPILimiter.init(redis_client)
     # Создаем один httpx клиент на все время жизни приложения
     app.state.http_client = httpx.AsyncClient(timeout=settings.proxy_timeout)
     yield
@@ -65,7 +64,7 @@ async def logging_middleware(request: Request, call_next):
 
 # Health check
 @app.get(
-    "/health", dependencies=[Depends(RateLimiter(times=settings.rate_limit, minutes=1))]
+    "/health", dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(10, Duration.SECOND * 1))))]
 )
 async def health_check():
     return {"status": "ok"}
@@ -81,6 +80,7 @@ async def favicon():
 @app.api_route(
     "/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+    dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(100, Duration.SECOND * 1))))],
 )
 async def proxy_requests(request: Request):
     return await reverse_proxy(request)
