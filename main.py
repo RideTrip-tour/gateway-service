@@ -64,7 +64,8 @@ async def logging_middleware(request: Request, call_next):
 
 # Health check
 @app.get(
-    "/health", dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(10, Duration.SECOND * 1))))]
+    "/health",
+    dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(10, Duration.SECOND * 1))))],
 )
 async def health_check():
     return {"status": "ok"}
@@ -80,7 +81,9 @@ async def favicon():
 @app.api_route(
     "/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(100, Duration.SECOND * 1))))],
+    dependencies=[
+        Depends(RateLimiter(limiter=Limiter(Rate(100, Duration.SECOND * 1))))
+    ],
 )
 async def proxy_requests(request: Request):
     return await reverse_proxy(request)
