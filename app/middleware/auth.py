@@ -31,6 +31,7 @@ async def parse_service_request(request: Request) -> tuple[dict, str]:
     expected_service_token = settings.service_tokens.get(service_id)
 
     if not await match_tokens(expected_service_token, service_token):
+        logger.warning("Invalid service token")
         raise HTTPException(status_code=401, detail="Invalid service authentication")
 
     if service_id == "admin":
