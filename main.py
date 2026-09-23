@@ -82,7 +82,11 @@ async def favicon():
     "/api/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
     dependencies=[
-        Depends(RateLimiter(limiter=Limiter(Rate(100, Duration.SECOND * 1))))
+        Depends(
+            RateLimiter(
+                limiter=Limiter(Rate(settings.rate_limit, Duration.SECOND * 60))
+            )
+        )
     ],
 )
 async def proxy_requests(request: Request):

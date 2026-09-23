@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://redis:6379"
     redis_ttl: int = 300  # время жизни кеша по умолчанию
-    rate_limit: int = 100  # запросов в минуту
+    rate_limit: int = 300  # запросов в минуту
     proxy_timeout: float = 30.0
     cache_enabled: bool = True
     response_cache_ttl: int = 60
