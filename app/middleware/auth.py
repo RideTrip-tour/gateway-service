@@ -15,9 +15,9 @@ async def parse_service_request(request: Request) -> tuple[dict, str]:
     """
     Проверяет достоверность токена сервиса.
     """
-    service_id = request.headers.get("X-Service-ID")
-    user_context = request.headers.get("X-User-Context")
-    service_token = request.headers.get("X-Service-Token")
+    service_id = request.headers.get("X-Service-ID", "")
+    user_context = request.headers.get("X-User-Context", "")
+    service_token = request.headers.get("X-Service-Token", "")
 
     if not all(
         [
@@ -28,7 +28,7 @@ async def parse_service_request(request: Request) -> tuple[dict, str]:
     ):
         return {}, ""
 
-    expected_service_token = settings.service_tokens.get(service_id)
+    expected_service_token = settings.service_tokens.get(service_id, "")
 
     if not await match_tokens(expected_service_token, service_token):
         logger.warning("Invalid service token")
@@ -45,14 +45,14 @@ async def parse_service_request(request: Request) -> tuple[dict, str]:
     return user_data, service_id
 
 
-async def parse_request(request: Request) -> tuple[dict, str]:
+async def parse_request(request: Request) -> tuple[dict | None, str]:
     """
     Парсит запрос на данные пользователя и тип.
     Запрос может быть:
     - user: источник - браузер, несет в себе cookie c access токеном
     - <name>_service: источник - внутренний сервис,
     """
-    user_data: dict = {}
+    user_data: dict | None = {}
     client_type: str = "user"
     is_public_path: bool = check_public_path(request.url.path)
 
@@ -66,7 +66,7 @@ async def parse_request(request: Request) -> tuple[dict, str]:
         )
     # Проверяем куки браузера
     if has_access_token:
-        user_data = await validate_jwt(request.cookies.get("access_token", None))
+        user_data = await validate_jwt(request.cookies.get("access_token", ""))
         if not (user_data or is_public_path):
             raise HTTPException(status_code=401, detail="Invalid access token")
 

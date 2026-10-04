@@ -8,12 +8,12 @@ async def validate_admin_permission(request: Request) -> None:
     """
     Права администратора, выкидывает исключение, если не удалось проверить.
     """
-    service_id = request.headers.get("X-Service-ID")
+    service_id = request.headers.get("X-Service-ID", "")
     user_context = request.headers.get("X-User-Context")
     service_token = request.headers.get("X-Service-Token")
     timestamp = request.headers.get("X-Timestamp")
     nonce = request.headers.get("X-Nonce")
-    signature = request.headers.get("X-Signature")
+    signature = request.headers.get("X-Signature", "")
 
     if not all(
         [
