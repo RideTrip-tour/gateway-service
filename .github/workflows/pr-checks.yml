@@ -33,4 +33,9 @@ jobs:
           ruff format --check .
 
       - name: Tests
-        run: pytest -q
+        run: |
+          pytest \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=90
