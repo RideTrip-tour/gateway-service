@@ -227,12 +227,14 @@ async def test_get_response_preserves_multiple_query_params():
 
         mock_request.app.state.http_client = client
         mock_request.method = "GET"
-        mock_request.query_params = QueryParams(
-            [
-                ("region", "Московская область"),
-                ("region", "Кемеровская область"),
-                ("limit", "100"),
-            ]
+        mock_request.url.query = str(
+            QueryParams(
+                [
+                    ("region", "Московская область"),
+                    ("region", "Кемеровская область"),
+                    ("limit", "100"),
+                ]
+            )
         )
         mock_request.stream.return_value = MockAsyncIterator()
 

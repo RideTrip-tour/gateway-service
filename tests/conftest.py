@@ -2,6 +2,8 @@ from unittest.mock import AsyncMock, patch
 
 import fakeredis.aioredis
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from main import app
@@ -30,3 +32,20 @@ def client() -> TestClient:
     """Предоставляет тестовый клиент, отключая lifespan"""
     with TestClient(app, backend_options={"lifespan": "off"}) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def rsa_keys():
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+
+    public_key = private_key.public_key()
+
+    public_key_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    ).decode()
+
+    return private_key, public_key_pem

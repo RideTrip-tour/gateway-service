@@ -4,8 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import HTTPException
 
-from app.middleware.auth import parse_service_request, request_data_middleware
+from app.middleware.auth import (
+    parse_request,
+    parse_service_request,
+    request_data_middleware,
+)
 
 
 @pytest.mark.asyncio
@@ -116,26 +121,177 @@ async def test_request_data_middleware_user_data_in_request_state_for_admin_requ
 
 @pytest.mark.asyncio
 async def test_parse_service_request_without_req_headers():
-    service_name = ""
     user_context = "jwt"
     token = "Token"
     timestamp = str(int(time.time()))
     nonce = secrets.token_urlsafe(32)
     request = SimpleNamespace(
-            url=SimpleNamespace(path="/api/users/me"),
-            cookies={},
-            state=SimpleNamespace(),
-            headers={
-                "X-Service-ID": service_name,
-                "X-User-Context": user_context,
-                "X-Service-Token": token,
-                "X-Timestamp": timestamp,
-                "X-Nonce": nonce,
-                "X-Signature": "signature",
-            },
-            body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
-            method="POST",
-        )
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={},
+        state=SimpleNamespace(),
+        headers={
+            "X-User-Context": user_context,
+            "X-Service-Token": token,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": "signature",
+        },
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
     user_data, service_id = await parse_service_request(request)
     assert user_data == {}
     assert service_id == ""
+
+
+@pytest.mark.asyncio
+async def test_parse_service_request_wrong_token():
+    service_name = "auth"
+    user_context = "jwt"
+    token = "Token"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(32)
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={},
+        state=SimpleNamespace(),
+        headers={
+            "X-Service-ID": service_name,
+            "X-User-Context": user_context,
+            "X-Service-Token": token,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": "signature",
+        },
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
+    with (
+        patch("app.middleware.auth.settings.service_tokens", {"auth": "wrong token"}),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await parse_service_request(request)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid service authentication"
+
+
+@pytest.mark.asyncio
+async def test_parse_service_request_fail_validate_jwt():
+    """Middleware должно сохранять decoded JWT в request.state.user."""
+    service_name = "auth"
+    user_context = "jwt"
+    token = "Token"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(32)
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={},
+        state=SimpleNamespace(),
+        headers={
+            "X-Service-ID": service_name,
+            "X-User-Context": user_context,
+            "X-Service-Token": token,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": "signature",
+        },
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
+
+    with (
+        patch(
+            "app.middleware.auth.validate_jwt",
+            new_callable=AsyncMock,
+        ) as mock_validate_jwt,
+        patch("app.middleware.auth.settings.service_tokens", {"auth": token}),
+    ):
+        mock_validate_jwt.return_value = None
+        user_data, service_id = await parse_service_request(request)
+
+    assert user_data == {}
+    assert service_id == ""
+
+
+@pytest.mark.asyncio
+async def test_parse_request_with_access_token_and_service_id():
+    service_name = "auth"
+    user_context = "jwt"
+    token = "Token"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(32)
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={"access_token": "access-token"},
+        state=SimpleNamespace(),
+        headers={
+            "X-Service-ID": service_name,
+            "X-User-Context": user_context,
+            "X-Service-Token": token,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": "signature",
+        },
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
+    with pytest.raises(HTTPException) as exc:
+        await parse_request(request)
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Ambiguous authentication"
+
+
+@pytest.mark.asyncio
+async def test_parse_request_wrong_service_access():
+    service_name = "auth"
+    user_context = "jwt"
+    token = "Token"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(32)
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={},
+        state=SimpleNamespace(),
+        headers={
+            "X-Service-ID": service_name,
+            "X-User-Context": user_context,
+            "X-Service-Token": token,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": "signature",
+        },
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
+    with (
+        patch("app.middleware.auth.settings.service_tokens", {"auth": token}),
+        pytest.raises(HTTPException) as exc,
+    ):
+        await parse_request(request)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid service request"
+
+
+@pytest.mark.asyncio
+async def test_parse_request_fail_validate_jwt():
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/users/me"),
+        cookies={"access_token": "access_token"},
+        state=SimpleNamespace(),
+        headers={},
+        body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+        method="POST",
+    )
+    with (
+        patch("app.middleware.auth.settings.public_paths", []),
+        patch(
+            "app.middleware.auth.validate_jwt",
+            new_callable=AsyncMock,
+        ) as mock_validate_jwt,
+        pytest.raises(HTTPException) as exc,
+    ):
+        mock_validate_jwt.return_value = None
+        await parse_request(request)
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid access token"
