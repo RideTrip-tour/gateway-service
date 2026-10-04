@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.middleware.auth import request_data_middleware
+from app.middleware.auth import parse_service_request, request_data_middleware
 
 
 @pytest.mark.asyncio
@@ -112,3 +112,30 @@ async def test_request_data_middleware_user_data_in_request_state_for_admin_requ
 
     assert request.state.user == {"sub": "123", "is_active": True}
     assert request.state.client_type == service_name
+
+
+@pytest.mark.asyncio
+async def test_parse_service_request_without_req_headers():
+    service_name = ""
+    user_context = "jwt"
+    token = "Token"
+    timestamp = str(int(time.time()))
+    nonce = secrets.token_urlsafe(32)
+    request = SimpleNamespace(
+            url=SimpleNamespace(path="/api/users/me"),
+            cookies={},
+            state=SimpleNamespace(),
+            headers={
+                "X-Service-ID": service_name,
+                "X-User-Context": user_context,
+                "X-Service-Token": token,
+                "X-Timestamp": timestamp,
+                "X-Nonce": nonce,
+                "X-Signature": "signature",
+            },
+            body=AsyncMock(side_effect=lambda: b'{"body": "kdld"}'),
+            method="POST",
+        )
+    user_data, service_id = await parse_service_request(request)
+    assert user_data == {}
+    assert service_id == ""

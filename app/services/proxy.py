@@ -108,7 +108,7 @@ async def get_responce(request: Request) -> httpx.Response:
             method=request.method,
             url=target_url,
             headers=headers,
-            params=request.query_params.multi_items(),
+            params=request.url.query,
             content=body_stream,
         )
         resp = await client.send(req, stream=True)

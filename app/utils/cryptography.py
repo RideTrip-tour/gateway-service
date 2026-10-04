@@ -3,7 +3,8 @@ import hashlib
 import time
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from fastapi import HTTPException, Request
 
 
@@ -36,9 +37,9 @@ async def verify_request_signature(
 ) -> None:
     body = await request.body()
     body_hash = hashlib.sha256(body).hexdigest()
-    service_id = request.headers.get("X-Service-ID")
-    nonce = request.headers.get("X-Nonce")
-    timestamp = request.headers.get("X-Timestamp")
+    service_id = request.headers.get("X-Service-ID", "")
+    nonce = request.headers.get("X-Nonce", "")
+    timestamp = request.headers.get("X-Timestamp", "")
 
     message = build_signing_message(
         service_id=service_id,
@@ -48,16 +49,22 @@ async def verify_request_signature(
         timestamp=timestamp,
         nonce=nonce,
         body_hash=body_hash,
-        user_context=request.headers.get("X-User-Context"),
+        user_context=request.headers.get("X-User-Context", ""),
     )
 
     signature_bytes = base64.b64decode(signature)
     public_key = serialization.load_pem_public_key(public_key_data.encode())
+
+    if not isinstance(public_key, rsa.RSAPublicKey):
+        raise TypeError("Expected RSA public key")
+
     try:
         # Проверяем подпись
         public_key.verify(
             signature_bytes,
             message.encode(),
+            padding.PKCS1v15(),
+            hashes.SHA256(),
         )
     except InvalidSignature as ex:
         raise HTTPException(
