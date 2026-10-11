@@ -64,7 +64,7 @@ async def logging_middleware(request: Request, call_next):
 
 # Health check
 @app.get(
-    "/health",
+    "/api/gateway/health",
     dependencies=[Depends(RateLimiter(limiter=Limiter(Rate(10, Duration.SECOND * 1))))],
 )
 async def health_check():
