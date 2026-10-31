@@ -1,6 +1,5 @@
 import logging
 import time
-import uuid
 
 from fastapi import Request
 
@@ -8,8 +7,7 @@ logger = logging.getLogger("gateway_service")
 
 
 async def request_logging_middleware(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-    request.state.request_id = request_id
+    request_id = getattr(request.state, "request_id", None)
     started_at = time.perf_counter()
     status_code = 500
 

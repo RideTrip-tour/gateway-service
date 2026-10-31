@@ -1,6 +1,7 @@
 cryptography==50.0.0
 fastapi==0.141.1
 fastapi-limiter==0.2.0
+internal-middleware @ git+https://github.com/RideTrip-tour/middlewares.git@a7af65f6a7d0e509691e89e511deee36c140d0d0
 httpx==0.28.1
 PyJWT==2.15.0
 pydantic-settings==2.9.1
