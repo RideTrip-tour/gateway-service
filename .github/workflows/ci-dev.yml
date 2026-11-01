@@ -39,7 +39,7 @@ jobs:
     uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
     with:
       image-ref: ${{ needs.build.outputs.image_ref }}
-      swarm-service: ${{ vars.GATEWAY_SWARM_SERVICE || 'apps_gateway-service' }}
+      swarm-service: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
       environment: DEV
     secrets: inherit
 
@@ -60,7 +60,7 @@ jobs:
     with:
       service-name: ${{ vars.SERVICE_GATEWAY_NAME || 'gateway-service' }}
       environment: DEV
-      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'gate_gateway-service' }}
+      swarm-service: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
       results-json: ${{ toJSON(needs) }}
       image-ref: ${{ needs.build.outputs.image_ref }}
     secrets: inherit
