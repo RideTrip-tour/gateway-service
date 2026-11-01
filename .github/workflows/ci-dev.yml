@@ -4,288 +4,63 @@ on:
   push:
     branches:
       - develop
-  pull_request:
-    branches:
-      - develop
 
-env:
-  DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
-  SWARM_SERVICE: ${{ vars.GATEWAY_SWARM_SERVICE || 'gate_gateway-service' }}
-  DATA_NETWORK: ${{ vars.DATA_NETWORK || 'data-network' }}
-  SERVICE_NAME: ${{ vars.SERVICE_NAME || 'gateway-service' }}
-  APP_NAME: ${{ vars.APP_NAME || 'gateway' }}
-  ENVIRONMENT: ${{ vars.ENVIRONMENT || 'DEV' }}
+permissions:
+  contents: read
 
 jobs:
-  lint_test:
-    runs-on: ubuntu-latest
-    env:
-      DEBUG: "true"
-    steps:
-      - uses: actions/checkout@v4
+  ruff:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+  
+  mypy:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      mypy-target: app
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements.test.txt
+  tests:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      coverage-source: app
+      coverage-min: 90
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.test.txt
-
-      - name: Lint (ruff)
-        run: |
-          ruff check --select F,E9 .
-          ruff check .
-          ruff format --check .
-
-      - name: Tests (pytest)
-        run: |
-          pytest \
-            --cov=app \
-            --cov-report=term-missing \
-            --cov-report=xml \
-            --cov-fail-under=90
-
-  build_push:
-    runs-on: ubuntu-latest
-    needs:
-      - lint_test
+  build:
+    needs: [ruff, tests, mypy]
     if: github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
+    uses: RideTrip-tour/ci-templates/.github/workflows/docker-build-push.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      namespace: ${{ vars.DOCKERHUB_NAMESPACE || 'ride2trip' }}
+      service-name: ${{ vars.SERVICE_GATEWAY_NAME || 'gateway-service' }}
+      tag-prefix: dev
+    secrets: inherit
 
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Compute image ref
-        id: image
-        run: |
-          image_ref="${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}"
-          echo "IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
-          echo "ref=$image_ref" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push gateway-service
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ steps.image.outputs.ref }}
-            ${{ env.DOCKERHUB_NAMESPACE }}/gateway-service:dev
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   deploy:
-    runs-on: ubuntu-latest
-    needs:
-      - build_push
-    if: github.event_name == 'push'
-    environment: DEV
-    steps:
-      - name: Compute image ref
-        run: echo "IMAGE_REF=${DOCKERHUB_NAMESPACE}/gateway-service:dev-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+    needs: [build]
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-deploy.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      image-ref: ${{ needs.build.outputs.image_ref }}
+      swarm-service: ${{ vars.GATEWAY_SWARM_SERVICE || 'apps_gateway-service' }}
+      environment: DEV
+    secrets: inherit
 
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SWARM_SSH_PRIVATE_KEY }}
+  healthcheck:
+    needs: deploy
+    uses: RideTrip-tour/ci-templates/.github/workflows/swarm-healthcheck.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      service-name: ${{ vars.SERVICE_GATEWAY_NAME || 'gateway-service' }}
+      app-name: ${{ vars.APP_NAME || 'gateway' }}
+      data-network: ${{ vars.DATA_NETWORK || 'data-network' }}
+      environment: DEV
+    secrets: inherit
 
-      - name: Add known hosts
-        run: ssh-keyscan -H "${{ secrets.SWARM_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Create docker context
-        run: |
-          set -euo pipefail
-          echo "DEPLOY_STEP=Preparation" >> "$GITHUB_ENV"
-
-          docker context create swarm --docker "host=ssh://${{ secrets.SWARM_USER }}@${{ secrets.SWARM_HOST }}"
-          docker --context swarm info
-
-      - name: Update ${{ env.SERVICE_NAME }}
-        run: |
-          set -euo pipefail
-          echo "DEPLOY_STEP=Swarm rollout" >> "$GITHUB_ENV"
-
-          docker --context swarm service update \
-            --with-registry-auth \
-            --detach=false \
-            --image "$IMAGE_REF" \
-            "$SWARM_SERVICE"
-
-      - name: Healthcheck ${{ env.SERVICE_NAME }}
-        run: |
-          set -euo pipefail
-          echo "DEPLOY_STEP=Healthcheck" >> "$GITHUB_ENV"
-          
-          healthcheck_service="${SERVICE_NAME}-healthcheck-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-          cleanup() {
-            docker --context swarm service rm "$healthcheck_service" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          cleanup
-
-          HEALTHCHECK_URL="http://${{ env.SERVICE_NAME }}:8000/api/gateway/health"
-
-          echo "Healthcheck URL: ${HEALTHCHECK_URL}"
-
-          docker --context swarm service create \
-            --name "$healthcheck_service" \
-            --detach=false \
-            --restart-condition none \
-            --mode replicated-job \
-            --network "$DATA_NETWORK" \
-            --env "HEALTHCHECK_URL=$HEALTHCHECK_URL" \
-            --entrypoint sh \
-            curlimages/curl:8.10.1 \
-              -c '
-                for i in $(seq 1 30); do
-                  echo "Healthcheck attempt $i/30"
-
-                  if curl --fail --silent --show-error --max-time 5 \
-                    "$HEALTHCHECK_URL"; then
-                    echo "Healthcheck passed"
-                    exit 0
-                  fi
-
-                  echo "Healthcheck attempt $i failed"
-                  sleep 5
-                done
-
-                echo "Healthcheck failed"
-                exit 1
-              '
-
-      - name: Notify successful deployment
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
-          GH_TOKEN: ${{ github.token }}
-        if: success()
-        run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
-          PR_INFO="$(
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=${GITHUB_REF_NAME}&per_page=100" \
-              --jq '.[] | select(.merged_at != null) | select(.merge_commit_sha == env.GITHUB_SHA) | "\(.number)|\(.title)|\(.user.login)"'
-          )"
-
-          if [[ -n "$PR_INFO" ]]; then
-            IFS='|' read -r PR_NUMBER PR_TITLE PR_AUTHOR <<< "$PR_INFO"
-          else
-            PR_NUMBER=""
-            PR_TITLE=""
-            PR_AUTHOR="Direct push"
-          fi
-
-          MESSAGE="✅ DEPLOY SUCCESS
-
-          Service: ${SERVICE_NAME}
-          Environment: ${ENVIRONMENT}
-          Version: dev-${SHORT_SHA}
-          Commit: ${SHORT_SHA}
-          Branch: ${GITHUB_REF_NAME}
-          
-          🔀 PR #${PR_NUMBER}
-          ${PR_TITLE}
-
-          👤 PR author: ${PR_AUTHOR}
-          👤 Triggered by: ${GITHUB_ACTOR}
-
-          🐳 Image:
-          ${IMAGE_REF}
-
-          🏥 Healthcheck: OK
-          📦 Swarm service: ${SWARM_SERVICE}
-
-          🔗 GitHub:
-          ${RUN_URL}"
-
-          if ! curl -sS -X POST \
-                "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                -d "chat_id=${TELEGRAM_CHAT_ID}" \
-                -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
-                --data-urlencode "text=${MESSAGE}"; then
-              echo "Failed to send Telegram notification"
-          fi
-
-  notify_failure:
-    runs-on: ubuntu-latest
-    needs:
-      - lint_test
-      - build_push
-      - deploy
-    if: ${{ always() && (needs.lint_test.result == 'failure' || needs.build_push.result == 'failure' || needs.deploy.result == 'failure') }}
-    steps:
-      - name: Notify failed pipeline
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_DEPLOY_THREAD_ID: ${{ secrets.TELEGRAM_DEPLOY_THREAD_ID }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          FAILED_JOB="Unknown"
-
-          if [[ "${{ needs.lint_test.result }}" == "failure" ]]; then
-            FAILED_JOB="Lint/Test"
-          elif [[ "${{ needs.build_push.result }}" == "failure" ]]; then
-            FAILED_JOB="Build/Push"
-          elif [[ "${{ needs.deploy.result }}" == "failure" ]]; then
-            FAILED_JOB="Deploy"
-          fi
-
-          SHORT_SHA="${GITHUB_SHA::7}"
-          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
-          PR_INFO="$(
-            gh api \
-              "repos/${GITHUB_REPOSITORY}/pulls?state=closed&base=${GITHUB_REF_NAME}&per_page=100" \
-              --jq '.[] | select(.merged_at != null) | select(.merge_commit_sha == env.GITHUB_SHA) | "\(.number)|\(.title)|\(.user.login)"'
-          )"
-
-          if [[ -n "$PR_INFO" ]]; then
-            IFS='|' read -r PR_NUMBER PR_TITLE PR_AUTHOR <<< "$PR_INFO"
-          else
-            PR_NUMBER=""
-            PR_TITLE=""
-            PR_AUTHOR="Direct push"
-          fi
-
-          MESSAGE="❌ PIPELINE FAILED
-
-          Service: ${SERVICE_NAME}
-          Environment: ${ENVIRONMENT}
-          Version: dev-${SHORT_SHA}
-          Commit: ${SHORT_SHA}
-          Branch: ${GITHUB_REF_NAME}
-
-          💥 Failed stage:
-          ${FAILED_JOB}
-
-          🔀 PR #${PR_NUMBER}
-          ${PR_TITLE}
-
-          👤 PR author: ${PR_AUTHOR}
-          👤 Triggered by: ${GITHUB_ACTOR}
-
-          🔗 GitHub:
-          ${RUN_URL}"
-
-          if ! curl -sS -X POST \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "message_thread_id=${TELEGRAM_DEPLOY_THREAD_ID}" \
-            --data-urlencode "text=${MESSAGE}"; then
-              echo "Failed to send Telegram notification"
-          fi
+  notify:
+    needs: [ruff, tests, mypy, build, deploy, healthcheck]
+    if: ${{ always() && (github.event_name == 'push' || contains(needs.*.result, 'failure')) }}
+    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@1ea20e0f3eef0c509201b91ee307a5be4d0ea489
+    with:
+      service-name: ${{ vars.SERVICE_GATEWAY_NAME || 'gateway-service' }}
+      environment: DEV
+      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'gate_gateway-service' }}
+      results-json: ${{ toJSON(needs) }}
+      image-ref: ${{ needs.build.outputs.image_ref }}
+    secrets: inherit
