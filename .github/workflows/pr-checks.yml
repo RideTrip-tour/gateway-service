@@ -3,39 +3,32 @@ name: PR Checks
 on:
   pull_request:
     branches:
+      - release
       - develop
       - main
 
 jobs:
-  lint_test:
-    runs-on: ubuntu-latest
+  ruff:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-ruff.yml@7cd4ef9d2c2d3e28bf6694fec0629caaf0b803f6
+  
+  mypy:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-mypy.yml@7cd4ef9d2c2d3e28bf6694fec0629caaf0b803f6
+    with:
+      mypy-target: app
 
-    steps:
-      - uses: actions/checkout@v4
+  tests:
+    uses: RideTrip-tour/ci-templates/.github/workflows/python-test.yml@7cd4ef9d2c2d3e28bf6694fec0629caaf0b803f6
+    with:
+      coverage-source: app
+      coverage-min: 90
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -r requirements.test.txt
-          python -m pip install pytest pytest-asyncio ruff
-
-      - name: Lint (ruff)
-        run: |
-          ruff check --select F,E9 .
-          ruff check .
-          ruff format --check .
-
-      - name: Tests
-        run: |
-          pytest \
-            --cov=app \
-            --cov-report=term-missing \
-            --cov-report=xml \
-            --cov-fail-under=90
+  notify:
+    needs: [ruff, tests, mypy]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    uses: RideTrip-tour/ci-templates/.github/workflows/telegram-notify.yml@7cd4ef9d2c2d3e28bf6694fec0629caaf0b803f6
+    with:
+      service-name: ${{ vars.AUTH_SERVICE_NAME || 'gateway-service' }}
+      environment: DEV
+      swarm-service: ${{ vars.AUTH_SWARM_SERVICE || 'gate_gateway-service' }}
+      results-json: ${{ toJSON(needs) }}
+    secrets: inherit
