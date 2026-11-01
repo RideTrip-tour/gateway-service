@@ -8,6 +8,7 @@ import redis.asyncio as redis
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi_limiter.depends import RateLimiter
+from internal_middleware import build_request_id_middleware
 from pyrate_limiter import Duration, Limiter, Rate
 
 from app.middleware.auth import request_data_middleware
@@ -60,6 +61,9 @@ async def auth_middleware(request: Request, call_next):
 @app.middleware("http")
 async def logging_middleware(request: Request, call_next):
     return await request_logging_middleware(request, call_next)
+
+
+app.middleware("http")(build_request_id_middleware(logger=logger))
 
 
 # Health check
