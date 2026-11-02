@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from fastapi import HTTPException, Request
 
@@ -45,12 +46,13 @@ async def parse_service_request(request: Request) -> tuple[dict, str]:
     return user_data, service_id
 
 
-async def parse_request(request: Request) -> tuple[dict | None, str]:
+async def parse_request(request: Request) -> tuple[dict | None, str, str]:
     """
-    Парсит запрос на данные пользователя и тип.
+    Парсит запрос на данные пользователя, тип запроса и request_id.
     Запрос может быть:
-    - user: источник - браузер, несет в себе cookie c access токеном
+    - user: источник - браузер, несет в себе cookie c access токеном. Для межсервисных запросов берет из headers
     - <name>_service: источник - внутренний сервис,
+    - request_id: В случае межсервисного запроса прокидывает request_id из header. Если прямой запрос, то создается уникальный.
     """
     user_data: dict | None = {}
     client_type: str = "user"
@@ -58,6 +60,7 @@ async def parse_request(request: Request) -> tuple[dict | None, str]:
 
     has_access_token = bool(request.cookies.get("access_token"))
     has_service_id = bool(request.headers.get("X-Service-ID"))
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
 
     if has_access_token and has_service_id:
         raise HTTPException(
@@ -79,13 +82,14 @@ async def parse_request(request: Request) -> tuple[dict | None, str]:
     elif not is_public_path:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    return user_data, client_type
+    return user_data, client_type, request_id
 
 
 async def request_data_middleware(request: Request):
     """Middleware добавляет в request тип запроса и данные пользователя."""
 
-    user_data, client_type = await parse_request(request)
+    user_data, client_type, request_id = await parse_request(request)
 
     request.state.user = user_data
     request.state.client_type = client_type
+    request.state.request_id = request_id

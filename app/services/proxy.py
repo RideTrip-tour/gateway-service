@@ -58,6 +58,7 @@ async def get_headers(request: Request) -> dict:
         "x-forwarded-for",
         "x-real-ip",
         "x-client-type",
+        "x-request_id",
     }
     headers = {
         key: value
