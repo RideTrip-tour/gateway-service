@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException, Request
 from starlette.datastructures import QueryParams
 
-from app.services.proxy import get_headers, get_responce, get_target_url, reverse_proxy
+from app.services.proxy import get_headers, get_responce, get_service_from_path, get_target_url, reverse_proxy 
 
 service = "users"
 service_url = "http://users:8000"
@@ -254,3 +254,50 @@ async def test_get_response_preserves_multiple_query_params():
         "Московская область",
         "Кемеровская область",
     ]
+
+
+def test_get_service_from_path():
+    path_admin = "/api/admin/users/create"
+    path = "/api/users/me"
+
+    assert get_service_from_path(path_admin) == 'users'
+    assert get_service_from_path(path) == 'users'
+
+    with pytest.raises(HTTPException):
+            get_service_from_path("/users/create")
+
+
+@pytest.mark.asyncio
+async def test_get_target_url_success(monkeypatch):
+    request = MagicMock()
+    request.url.path = "/api/auth/login"
+    request.state = MagicMock()
+
+    monkeypatch.setattr(
+        "app.services.proxy.settings.service_map",
+        {"auth": "http://auth-service:8000"},
+    )
+
+    result = await get_target_url(request)
+
+    assert result == "http://auth-service:8000/api/auth/login"
+    assert request.state.target_service == "auth"
+
+
+@pytest.mark.asyncio
+async def test_get_target_url_service_not_found(monkeypatch):
+    request = MagicMock()
+    request.url.path = "/api/unknown/login"
+    request.state = MagicMock()
+
+    monkeypatch.setattr(
+        "app.services.proxy.settings.service_map",
+        {},
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        await get_target_url(request)
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Service not found"
+    assert request.state.target_service == "unknown"

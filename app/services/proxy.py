@@ -25,28 +25,40 @@ async def check_admin_permission(request: Request) -> None:
     return
 
 
-def is_admin_service(parts: list) -> bool:
-    return parts[2] == "admin"
+def get_service_from_path(path: str) -> str:
+    if path.startswith("/api/admin/"):
+        parts = path.split("/", 4)
+        service = parts[3] if len(parts) > 3 else None
 
+    elif path.startswith("/api/"):
+        parts = path.split("/", 3)
+        service = parts[2] if len(parts) > 2 else None
+
+    else:
+        service = None
+
+    if not service:
+        raise HTTPException(
+            status_code=404,
+            detail="Service not found",
+        )
+
+    return service
 
 async def get_target_url(request: Request) -> str:
     path = request.url.path
-    parts = path.split("/")
 
-    if is_admin_service(parts):
-        service = parts[3]
-    else:
-        service = parts[2]
+    service = get_service_from_path(path)
 
     request.state.target_service = service
 
-    if service not in settings.service_map:
+    target_base_url = settings.service_map.get(service)
+    
+    if target_base_url is None:
         logger.info("Service not found service=%s", service)
         raise HTTPException(status_code=404, detail="Service not found")
 
-    target_base_url = settings.service_map[service]
-    target_url = f"{target_base_url}{path}"
-    return target_url
+    return f"{target_base_url}{path}"
 
 
 async def get_headers(request: Request) -> dict:
