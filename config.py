@@ -14,13 +14,15 @@ class Settings(BaseSettings):
     proxy_timeout: float = 30.0
     cache_enabled: bool = True
     response_cache_ttl: int = 60
-    cacheable_paths: list[str] = [
-        "/api/locations",
-        "/api/references",
-    ]
-    public_paths: list[str] = [
-        "/health",
-    ]
+    cacheable_paths: frozenset[str] = frozenset(
+        [
+            "/api/locations",
+            "/api/references",
+        ]
+    )
+    public_paths: frozenset[str] = frozenset(
+        ["/health",]
+    )
     service_map: dict[str, str] = {
         "auth": "http://auth-service:8000",
         "locations": "http://location-service:8000",
