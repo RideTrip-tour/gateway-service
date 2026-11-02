@@ -45,6 +45,7 @@ def get_service_from_path(path: str) -> str:
 
     return service
 
+
 async def get_target_url(request: Request) -> str:
     path = request.url.path
 
@@ -53,7 +54,7 @@ async def get_target_url(request: Request) -> str:
     request.state.target_service = service
 
     target_base_url = settings.service_map.get(service)
-    
+
     if target_base_url is None:
         logger.info("Service not found service=%s", service)
         raise HTTPException(status_code=404, detail="Service not found")

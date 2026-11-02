@@ -6,7 +6,13 @@ import pytest
 from fastapi import HTTPException, Request
 from starlette.datastructures import QueryParams
 
-from app.services.proxy import get_headers, get_responce, get_service_from_path, get_target_url, reverse_proxy 
+from app.services.proxy import (
+    get_headers,
+    get_responce,
+    get_service_from_path,
+    get_target_url,
+    reverse_proxy,
+)
 
 service = "users"
 service_url = "http://users:8000"
@@ -260,11 +266,11 @@ def test_get_service_from_path():
     path_admin = "/api/admin/users/create"
     path = "/api/users/me"
 
-    assert get_service_from_path(path_admin) == 'users'
-    assert get_service_from_path(path) == 'users'
+    assert get_service_from_path(path_admin) == "users"
+    assert get_service_from_path(path) == "users"
 
     with pytest.raises(HTTPException):
-            get_service_from_path("/users/create")
+        get_service_from_path("/users/create")
 
 
 @pytest.mark.asyncio
