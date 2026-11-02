@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 
 async def get_request_id(request):
-    return getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    return (
+        getattr(request.state, "request_id", None)
+        or request.headers.get("X-Request-ID")
+        or str(uuid.uuid4())
+    )
 
 
 async def parse_service_request(request: Request) -> tuple[dict, str]:
