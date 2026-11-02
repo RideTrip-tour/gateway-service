@@ -1,3 +1,4 @@
+certifi>=2026.10.18
 cryptography==50.0.0
 fastapi==0.141.1
 fastapi-limiter==0.2.0

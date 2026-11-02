@@ -12,8 +12,9 @@ anyio==4.14.2
     # via
     #   httpx
     #   starlette
-certifi==2025.4.26
+certifi==2026.10.23
     # via
+    #   -r requirements.in
     #   httpcore
     #   httpx
 cffi==2.1.1

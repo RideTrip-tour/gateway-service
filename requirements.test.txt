@@ -19,7 +19,7 @@ anyio==4.14.2
     #   starlette
 ast-serialize==0.12.1
     # via mypy
-certifi==2025.4.26
+certifi==2026.10.23
     # via
     #   -r requirements.txt
     #   httpcore

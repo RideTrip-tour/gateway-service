@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+import logging
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import Request
@@ -8,9 +9,9 @@ from app.middleware.request_logging import request_logging_middleware
 
 
 @pytest.mark.asyncio
-async def test_request_logging_middleware_uses_existing_request_id():
+async def test_request_logging_middleware_uses_existing_request_id(caplog):
+    expected_request_id = "test-request-id"
     request = MagicMock(spec=Request)
-    request.headers = {"X-Request-ID": "existing-request-id"}
     request.method = "GET"
     request.url.path = "/test"
     request.state = MagicMock()
@@ -19,6 +20,7 @@ async def test_request_logging_middleware_uses_existing_request_id():
     }
     request.state.target_service = "users-service"
     request.state.client_type = "web"
+    request.state.request_id = expected_request_id
 
     client = MagicMock()
     client.host = "127.0.0.1"
@@ -28,43 +30,18 @@ async def test_request_logging_middleware_uses_existing_request_id():
 
     call_next = AsyncMock(return_value=response)
 
-    result = await request_logging_middleware(
-        request,
-        call_next,
-    )
+    with caplog.at_level(logging.INFO, logger="gateway_service"):
+        from app.middleware.request_logging import logger
 
-    assert result is response
-    assert request.state.request_id == "existing-request-id"
-    assert result.headers["X-Request-ID"] == "existing-request-id"
-
-    call_next.assert_awaited_once_with(request)
-
-
-@pytest.mark.asyncio
-async def test_request_logging_middleware_generates_request_id():
-    request = MagicMock(spec=Request)
-    request.headers = {}
-    request.method = "GET"
-    request.url.path = "/test"
-    request.state = MagicMock()
-
-    request.state.user = None
-    request.state.target_service = None
-    request.state.client_type = None
-    request.client = None
-
-    response = JSONResponse({"status": "ok"}, status_code=200)
-
-    call_next = AsyncMock(return_value=response)
-
-    with patch(
-        "app.middleware.request_logging.uuid.uuid4",
-        return_value="generated-request-id",
-    ):
+        logger.propagate = True
         result = await request_logging_middleware(
             request,
             call_next,
         )
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelname == "INFO"
+    assert f"request_id={expected_request_id}" in record.getMessage()
+    assert result is response
 
-    assert request.state.request_id == "generated-request-id"
-    assert result.headers["X-Request-ID"] == "generated-request-id"
+    call_next.assert_awaited_once_with(request)
