@@ -21,7 +21,9 @@ class Settings(BaseSettings):
         ]
     )
     public_paths: frozenset[str] = frozenset(
-        ["/health",]
+        [
+            "/health",
+        ]
     )
     service_map: dict[str, str] = {
         "auth": "http://auth-service:8000",
