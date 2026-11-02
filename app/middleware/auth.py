@@ -12,6 +12,14 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
+async def get_request_id(request):
+    return (
+        getattr(request.state, "request_id", None)
+        or request.headers.get("X-Request-ID")
+        or str(uuid.uuid4())
+    )
+
+
 async def parse_service_request(request: Request) -> tuple[dict, str]:
     """
     Проверяет достоверность токена сервиса.
@@ -60,7 +68,7 @@ async def parse_request(request: Request) -> tuple[dict | None, str, str]:
 
     has_access_token = bool(request.cookies.get("access_token"))
     has_service_id = bool(request.headers.get("X-Service-ID"))
-    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request_id = await get_request_id(request)
 
     if has_access_token and has_service_id:
         raise HTTPException(

@@ -3,11 +3,13 @@ import time
 
 from fastapi import Request
 
+from app.middleware.auth import get_request_id
+
 logger = logging.getLogger("gateway_service")
 
 
 async def request_logging_middleware(request: Request, call_next):
-    request_id = request.state.request_id or request.headers.get("X-Request-ID")
+    request_id = await get_request_id(request)
     started_at = time.perf_counter()
     status_code = 500
 
