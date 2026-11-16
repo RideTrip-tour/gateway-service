@@ -264,9 +264,11 @@ async def test_get_response_preserves_multiple_query_params():
 
 def test_get_service_from_path():
     path_admin = "/api/admin/users/create"
+    path_admin = "/api/internal/users/create"
     path = "/api/users/me"
 
     assert get_service_from_path(path_admin) == "users"
+    assert get_service_from_path(path) == "users"
     assert get_service_from_path(path) == "users"
 
     with pytest.raises(HTTPException):

@@ -26,7 +26,7 @@ async def check_admin_permission(request: Request) -> None:
 
 
 def get_service_from_path(path: str) -> str:
-    if path.startswith("/api/admin/"):
+    if path.startswith(("/api/admin/", "/api/internal/")):
         parts = path.split("/", 4)
         service = parts[3] if len(parts) > 3 else None
 
