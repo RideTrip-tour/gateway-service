@@ -30,6 +30,10 @@ def get_service_from_path(path: str) -> str:
         parts = path.split("/", 4)
         service = parts[3] if len(parts) > 3 else None
 
+    if path.startswith("/api/internal/"):
+        parts = path.split("/", 4)
+        service = parts[3] if len(parts) > 3 else None
+
     elif path.startswith("/api/"):
         parts = path.split("/", 3)
         service = parts[2] if len(parts) > 2 else None
